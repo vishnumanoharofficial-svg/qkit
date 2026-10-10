@@ -1,0 +1,24 @@
+﻿node.exe : npm verbose cli C:\Users\USER\nodejs\node-v22.11.0-win-x64\node.exe 
+C:\Users\USER\nodejs\node-v22.11.0-win-x64\node_modules\npm\bin\npm-cli.js
+At line:1 char:158
++ ... pm-cli.js"; & $node $npmCli install next@14.2.5 react@18.3.1 react-do ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm verbose cli...\bin\npm-cli.js:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+npm info using npm@10.9.0
+npm info using node@v22.11.0
+npm warn config cache-max This option has been deprecated in favor of `--prefer-online`
+npm verbose title npm install next@14.2.5 react@18.3.1 react-dom@18.3.1 typescript tailwindcss postcss autoprefixer 
+lucide-react clsx tailwind-merge
+npm verbose argv "install" "next@14.2.5" "react@18.3.1" "react-dom@18.3.1" "typescript" "tailwindcss" "postcss" 
+"autoprefixer" "lucide-react" "clsx" "tailwind-merge" "--no-audit" "--no-fund" "--loglevel" "verbose"
+npm verbose logfile logs-max:10 dir:C:\Users\USER\AppData\Local\npm-cache\_logs\2026-10-09T18_22_12_160Z-
+npm verbose logfile C:\Users\USER\AppData\Local\npm-cache\_logs\2026-10-09T18_22_12_160Z-debug-0.log
+npm http fetch GET https://registry.npmjs.org/next attempt 1 failed with UNABLE_TO_VERIFY_LEAF_SIGNATURE
+npm http fetch GET https://registry.npmjs.org/next attempt 2 failed with UNABLE_TO_VERIFY_LEAF_SIGNATURE
+npm http fetch GET https://registry.npmjs.org/next attempt 3 failed with UNABLE_TO_VERIFY_LEAF_SIGNATURE
+npm http fetch GET https://registry.npmjs.org/next attempt 4 failed with UNABLE_TO_VERIFY_LEAF_SIGNATURE
+npm http fetch GET https://registry.npmjs.org/react attempt 1 failed with UNABLE_TO_VERIFY_LEAF_SIGNATURE
+npm http fetch GET https://registry.npmjs.org/react attempt 2 failed with UNABLE_TO_VERIFY_LEAF_SIGNATURE
+npm http fetch GET https://registry.npmjs.org/react attempt 3 failed with UNABLE_TO_VERIFY_LEAF_SIGNATURE

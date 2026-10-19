@@ -1,3 +1,5 @@
+export * from './kottayam-locations';
+
 export const APP_NAME = 'qkit';
 export const APP_TAGLINE = 'Find Your Perfect Property';
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';

@@ -11,8 +11,16 @@ import {
 import { cn } from '@/lib/utils';
 import {
   PROPERTY_CATEGORIES, TRANSACTION_TYPES, AREA_UNITS,
-  SELLER_TYPES, FURNISHING_TYPES, BHK_TYPES, POPULAR_CITIES, INDIAN_STATES
+  SELLER_TYPES, FURNISHING_TYPES, BHK_TYPES,
 } from '@/lib/constants';
+import {
+  BLOCKS_AND_PANCHAYATS,
+  ALL_KOTTAYAM_LOCATIONS,
+  MUNICIPALITIES,
+  TALUKS,
+  DISTRICT,
+  STATE,
+} from '@/lib/constants/kottayam-locations';
 
 interface UploadedImage {
   url: string;
@@ -41,7 +49,9 @@ export default function AdminAddPropertyPage() {
     negotiable: false,
     area: '',
     area_unit: 'sqft',
-    state: '',
+    state: 'Kerala',
+    district: 'Kottayam',
+    taluk: '',
     city: '',
     locality: '',
     address_line: '',
@@ -468,31 +478,90 @@ export default function AdminAddPropertyPage() {
           </div>
         </div>
 
-        {/* Location */}
+        {/* Location — Phase 1: Kottayam District only */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-heading font-semibold text-lg text-slate-900 mb-4 flex items-center gap-2">
+          <h2 className="font-heading font-semibold text-lg text-slate-900 mb-1 flex items-center gap-2">
             <MapPin className="w-5 h-5 text-brand-600" />Location
           </h2>
+          <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-brand-50 border border-brand-100 rounded-lg text-sm text-brand-700">
+            <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+            <span><strong>Phase 1:</strong> Properties accepted in <strong>Kottayam District, Kerala</strong> only.</span>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* State — locked */}
             <div>
-              <label className="label">State *</label>
-              <select required className="input" value={form.state} onChange={e => set('state', e.target.value)}>
-                <option value="">Select State</option>
-                {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+              <label className="label">State</label>
+              <input className="input bg-slate-50 text-slate-500 cursor-not-allowed" value="Kerala" readOnly />
+            </div>
+            {/* District — locked */}
+            <div>
+              <label className="label">District</label>
+              <input className="input bg-slate-50 text-slate-500 cursor-not-allowed" value="Kottayam" readOnly />
+            </div>
+            {/* Taluk */}
+            <div>
+              <label className="label">Taluk *</label>
+              <select required className="input" value={form.taluk} onChange={e => { set('taluk', e.target.value); set('city', ''); }}>
+                <option value="">Select Taluk</option>
+                {TALUKS.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
+            {/* Town / Panchayat — filtered by taluk */}
             <div>
-              <label className="label">City *</label>
-              <input required className="input" list="cities-list" placeholder="e.g. Bangalore" value={form.city} onChange={e => set('city', e.target.value)} />
-              <datalist id="cities-list">{POPULAR_CITIES.map(c => <option key={c} value={c} />)}</datalist>
+              <label className="label">Town / Panchayat *</label>
+              <select
+                required
+                className="input"
+                value={form.city}
+                onChange={e => set('city', e.target.value)}
+                disabled={!form.taluk}
+              >
+                <option value="">{form.taluk ? 'Select Town / Panchayat' : 'Select a Taluk first'}</option>
+                {/* Municipalities in this taluk */}
+                {form.taluk && (() => {
+                  const munis = MUNICIPALITIES.filter(m => m.taluk === form.taluk);
+                  const blocks = BLOCKS_AND_PANCHAYATS.filter(b => b.taluk === form.taluk);
+                  return (
+                    <>
+                      {munis.length > 0 && (
+                        <optgroup label="Municipalities">
+                          {munis.map(m => (
+                            <option key={m.name} value={m.name.replace(' Municipality', '')}>
+                              {m.name.replace(' Municipality', '')} (Municipality)
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {blocks.map(b => (
+                        <optgroup key={b.block} label={`${b.block} Block`}>
+                          {b.panchayats.map(p => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </>
+                  );
+                })()}
+              </select>
             </div>
+            {/* Locality / Ward */}
             <div>
-              <label className="label">Locality / Area</label>
-              <input className="input" placeholder="e.g. Whitefield, Koramangala" value={form.locality} onChange={e => set('locality', e.target.value)} />
+              <label className="label">Locality / Area / Ward</label>
+              <input
+                className="input"
+                list="locality-list"
+                placeholder="e.g. Town Junction, Colony name…"
+                value={form.locality}
+                onChange={e => set('locality', e.target.value)}
+              />
+              <datalist id="locality-list">
+                {ALL_KOTTAYAM_LOCATIONS.map(l => <option key={l} value={l} />)}
+              </datalist>
             </div>
+            {/* Full address */}
             <div className="md:col-span-3">
-              <label className="label">Full Address</label>
-              <input className="input" placeholder="Building name, street, landmark…" value={form.address_line} onChange={e => set('address_line', e.target.value)} />
+              <label className="label">Full Address / Landmark</label>
+              <input className="input" placeholder="House no., street, junction, landmark…" value={form.address_line} onChange={e => set('address_line', e.target.value)} />
             </div>
           </div>
         </div>

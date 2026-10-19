@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft, Save, Home, MapPin, DollarSign,
-  User, Image as ImageIcon, CheckCircle, AlertCircle
+  User, Image as ImageIcon, CheckCircle, AlertCircle,
+  Upload, X, Star, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -13,11 +14,22 @@ import {
   SELLER_TYPES, FURNISHING_TYPES, BHK_TYPES, POPULAR_CITIES, INDIAN_STATES
 } from '@/lib/constants';
 
+interface UploadedImage {
+  url: string;
+  name: string;
+  preview: string;  // local object URL for display
+  uploading?: boolean;
+  error?: string;
+}
+
 export default function AdminAddPropertyPage() {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [images, setImages] = useState<UploadedImage[]>([]);
 
   const [form, setForm] = useState({
     title: '',
@@ -47,29 +59,119 @@ export default function AdminAddPropertyPage() {
     status: 'published',
     is_featured: false,
     is_verified: false,
-    image_urls: '',
   });
 
   const set = (k: string, v: unknown) => setForm(f => ({ ...f, [k]: v }));
+
+  // Upload a single file to the API
+  const uploadFile = useCallback(async (file: File): Promise<string | null> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res = await fetch('/api/admin/upload-image', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Upload failed');
+    return json.url;
+  }, []);
+
+  // Process dropped / selected files
+  const handleFiles = useCallback(async (files: FileList | File[]) => {
+    const arr = Array.from(files);
+    const valid = arr.filter(f => {
+      if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(f.type)) return false;
+      if (f.size > 10 * 1024 * 1024) return false;
+      return true;
+    });
+
+    if (valid.length === 0) return;
+
+    // Add placeholders with uploading state
+    const placeholders: UploadedImage[] = valid.map(f => ({
+      url: '',
+      name: f.name,
+      preview: URL.createObjectURL(f),
+      uploading: true,
+    }));
+
+    setImages(prev => [...prev, ...placeholders]);
+
+    // Upload each file
+    for (let i = 0; i < valid.length; i++) {
+      const file = valid[i];
+      try {
+        const url = await uploadFile(file);
+        setImages(prev =>
+          prev.map(img =>
+            img.preview === placeholders[i].preview
+              ? { ...img, url: url || '', uploading: false }
+              : img
+          )
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Upload failed';
+        setImages(prev =>
+          prev.map(img =>
+            img.preview === placeholders[i].preview
+              ? { ...img, uploading: false, error: msg }
+              : img
+          )
+        );
+      }
+    }
+  }, [uploadFile]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    handleFiles(e.dataTransfer.files);
+  }, [handleFiles]);
+
+  const removeImage = (index: number) => {
+    setImages(prev => {
+      const img = prev[index];
+      if (img.preview) URL.revokeObjectURL(img.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const setPrimary = (index: number) => {
+    setImages(prev => {
+      const newArr = [...prev];
+      const [item] = newArr.splice(index, 1);
+      return [item, ...newArr];
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError('');
     try {
-      const slug = form.title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-') + '-' + Date.now().toString(36);
-      const images = form.image_urls.split('\n').map(u => u.trim()).filter(Boolean);
+      // Check if any images are still uploading
+      if (images.some(img => img.uploading)) {
+        throw new Error('Please wait — images are still uploading');
+      }
+
+      const successfulImages = images.filter(img => img.url && !img.error);
+      const imageUrls = successfulImages.map(img => img.url);
+
       const body = {
         title: form.title,
-        slug,
         description: form.description,
         transaction_type: form.transaction_type,
-        category_id: form.category_slug,
+        category_slug: form.category_slug,
         price: Number(form.price),
         price_unit: form.price_unit,
         negotiable: form.negotiable,
         area: Number(form.area),
         area_unit: form.area_unit,
+        state: form.state,
+        city: form.city,
+        locality: form.locality,
         address_line: form.address_line,
         seller_name: form.seller_name,
         seller_phone: form.seller_phone,
@@ -77,21 +179,15 @@ export default function AdminAddPropertyPage() {
         status: form.status,
         is_featured: form.is_featured,
         is_verified: form.is_verified,
-        show_exact_location: false,
-        views_count: 0,
-        enquiries_count: 0,
-        listing_id: 'QK-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
-        attributes: {
-          bedrooms: form.bedrooms,
-          bathrooms: form.bathrooms,
-          floor: form.floor,
-          total_floors: form.total_floors,
-          furnishing: form.furnishing,
-          parking: form.parking,
-          facing: form.facing,
-          age: form.age,
-        },
-        media: images.map((url, i) => ({ url, type: 'image', sort_order: i, is_primary: i === 0 })),
+        image_urls: imageUrls,
+        bedrooms: form.bedrooms,
+        bathrooms: form.bathrooms,
+        floor: form.floor,
+        total_floors: form.total_floors,
+        furnishing: form.furnishing,
+        parking: form.parking,
+        facing: form.facing,
+        age: form.age,
       };
 
       const res = await fetch('/api/admin/add-property', {
@@ -110,10 +206,13 @@ export default function AdminAddPropertyPage() {
     }
   };
 
+  const uploadingCount = images.filter(i => i.uploading).length;
+  const failedCount = images.filter(i => i.error).length;
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <Link href="/admin/listings" className="p-2 rounded-lg hover:bg-slate-100 text-slate-500">
             <ArrowLeft className="w-5 h-5" />
@@ -128,10 +227,18 @@ export default function AdminAddPropertyPage() {
           <button
             type="submit"
             form="add-property-form"
-            disabled={saving}
+            disabled={saving || uploadingCount > 0}
             className="btn-primary btn-md"
           >
-            {saving ? 'Saving…' : saved ? '✓ Saved!' : <><Save className="w-4 h-4" />Save Property</>}
+            {saving ? (
+              <><Loader2 className="w-4 h-4 animate-spin" />Saving…</>
+            ) : saved ? (
+              <><CheckCircle className="w-4 h-4" />Saved!</>
+            ) : uploadingCount > 0 ? (
+              <><Loader2 className="w-4 h-4 animate-spin" />Uploading {uploadingCount}…</>
+            ) : (
+              <><Save className="w-4 h-4" />Save Property</>
+            )}
           </button>
         </div>
       </div>
@@ -144,7 +251,7 @@ export default function AdminAddPropertyPage() {
       )}
       {saved && (
         <div className="mx-6 mt-4 p-4 bg-green-50 border border-green-200 rounded-xl flex items-center gap-3 text-green-700">
-          <CheckCircle className="w-5 h-5 flex-shrink-0" />Property saved! Redirecting to listings…
+          <CheckCircle className="w-5 h-5 flex-shrink-0" />Property saved! Redirecting…
         </div>
       )}
 
@@ -177,6 +284,150 @@ export default function AdminAddPropertyPage() {
               <textarea className="input min-h-[120px] resize-y" placeholder="Describe the property — location advantages, amenities, nearby landmarks…" value={form.description} onChange={e => set('description', e.target.value)} />
             </div>
           </div>
+        </div>
+
+        {/* Images — drag & drop uploader */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <h2 className="font-heading font-semibold text-lg text-slate-900 mb-1 flex items-center gap-2">
+            <ImageIcon className="w-5 h-5 text-brand-600" />Property Images
+          </h2>
+          <p className="text-sm text-slate-500 mb-4">
+            Upload JPG or PNG photos. First image will be the cover photo. Max 10 MB per image.
+          </p>
+
+          {/* Drop zone */}
+          <div
+            onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              'border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all',
+              dragOver
+                ? 'border-brand-500 bg-brand-50'
+                : 'border-slate-200 hover:border-brand-400 hover:bg-slate-50'
+            )}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="hidden"
+              onChange={e => e.target.files && handleFiles(e.target.files)}
+            />
+            <Upload className={cn('w-8 h-8 mx-auto mb-3', dragOver ? 'text-brand-600' : 'text-slate-400')} />
+            <p className="font-medium text-slate-700">
+              {dragOver ? 'Drop images here' : 'Drag & drop images here'}
+            </p>
+            <p className="text-sm text-slate-400 mt-1">or <span className="text-brand-600 font-medium">click to browse</span></p>
+            <p className="text-xs text-slate-400 mt-2">JPG, PNG, WebP • Max 10 MB each • Multiple files allowed</p>
+          </div>
+
+          {/* Upload status bar */}
+          {uploadingCount > 0 && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-brand-600">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Uploading {uploadingCount} image{uploadingCount > 1 ? 's' : ''}…
+            </div>
+          )}
+          {failedCount > 0 && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-red-600">
+              <AlertCircle className="w-4 h-4" />
+              {failedCount} image{failedCount > 1 ? 's' : ''} failed to upload
+            </div>
+          )}
+
+          {/* Image previews */}
+          {images.length > 0 && (
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {images.map((img, index) => (
+                <div
+                  key={img.preview}
+                  className={cn(
+                    'relative group rounded-xl overflow-hidden border-2 aspect-[4/3] bg-slate-100',
+                    index === 0 ? 'border-brand-500' : 'border-slate-200',
+                    img.error ? 'border-red-300 bg-red-50' : ''
+                  )}
+                >
+                  {/* Image */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.preview}
+                    alt={img.name}
+                    className={cn('w-full h-full object-cover', img.uploading && 'opacity-50')}
+                  />
+
+                  {/* Uploading overlay */}
+                  {img.uploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/60">
+                      <Loader2 className="w-6 h-6 animate-spin text-brand-600" />
+                    </div>
+                  )}
+
+                  {/* Error overlay */}
+                  {img.error && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-50/90 p-2">
+                      <AlertCircle className="w-5 h-5 text-red-500 mb-1" />
+                      <p className="text-xs text-red-600 text-center leading-tight">{img.error}</p>
+                    </div>
+                  )}
+
+                  {/* Cover badge */}
+                  {index === 0 && !img.uploading && !img.error && (
+                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1 bg-brand-600 text-white text-xs font-semibold px-2 py-0.5 rounded-full">
+                      <Star className="w-2.5 h-2.5 fill-current" />Cover
+                    </div>
+                  )}
+
+                  {/* Hover controls */}
+                  {!img.uploading && !img.error && (
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      {index !== 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPrimary(index)}
+                          title="Set as cover photo"
+                          className="p-1.5 rounded-lg bg-white/90 text-slate-700 hover:bg-white transition-colors"
+                        >
+                          <Star className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        title="Remove image"
+                        className="p-1.5 rounded-lg bg-white/90 text-red-600 hover:bg-white transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Remove button for error state */}
+                  {img.error && (
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute top-1 right-1 p-1 rounded-full bg-white text-red-500 shadow"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              {/* Add more button */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="aspect-[4/3] rounded-xl border-2 border-dashed border-slate-200 hover:border-brand-400 hover:bg-slate-50 transition-all flex flex-col items-center justify-center text-slate-400 hover:text-brand-600"
+              >
+                <Upload className="w-5 h-5 mb-1" />
+                <span className="text-xs font-medium">Add more</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Price & Area */}
@@ -312,20 +563,6 @@ export default function AdminAddPropertyPage() {
           </div>
         </div>
 
-        {/* Images */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <h2 className="font-heading font-semibold text-lg text-slate-900 mb-2 flex items-center gap-2">
-            <ImageIcon className="w-5 h-5 text-brand-600" />Property Images
-          </h2>
-          <p className="text-sm text-slate-500 mb-4">Enter one image URL per line (from Unsplash, Cloudinary, or any direct image link)</p>
-          <textarea
-            className="input min-h-[120px] font-mono text-xs resize-y"
-            placeholder={`https://images.unsplash.com/photo-xxx?w=800\nhttps://images.unsplash.com/photo-yyy?w=800`}
-            value={form.image_urls}
-            onChange={e => set('image_urls', e.target.value)}
-          />
-        </div>
-
         {/* Seller Info */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="font-heading font-semibold text-lg text-slate-900 mb-4 flex items-center gap-2">
@@ -378,8 +615,14 @@ export default function AdminAddPropertyPage() {
         {/* Submit */}
         <div className="flex justify-end gap-3 pb-6">
           <Link href="/admin/listings" className="btn-secondary btn-lg">Cancel</Link>
-          <button type="submit" disabled={saving} className="btn-primary btn-lg">
-            {saving ? 'Saving…' : <><Save className="w-5 h-5" />Save & Publish Property</>}
+          <button type="submit" disabled={saving || uploadingCount > 0} className="btn-primary btn-lg">
+            {saving ? (
+              <><Loader2 className="w-5 h-5 animate-spin" />Saving…</>
+            ) : uploadingCount > 0 ? (
+              <><Loader2 className="w-5 h-5 animate-spin" />Uploading {uploadingCount} image{uploadingCount > 1 ? 's' : ''}…</>
+            ) : (
+              <><Save className="w-5 h-5" />Save & Publish Property</>
+            )}
           </button>
         </div>
 

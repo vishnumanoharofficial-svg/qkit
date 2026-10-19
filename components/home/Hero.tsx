@@ -34,7 +34,7 @@ export default function Hero() {
   }
 
   return (
-    <section className="relative overflow-hidden hero-gradient" aria-label="Property search">
+    <section className="relative hero-gradient" aria-label="Property search">
       <div className="absolute inset-0 pointer-events-none" aria-hidden>
         <div className="absolute top-0 right-0 w-96 h-96 bg-brand-100/60 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-amber-100/50 rounded-full translate-y-1/2 -translate-x-1/2 blur-2xl" />
@@ -55,7 +55,7 @@ export default function Hero() {
           </p>
 
           {/* Search card */}
-          <div className="bg-white rounded-3xl shadow-modal border border-slate-100 overflow-hidden animate-slide-up">
+          <div className="bg-white rounded-3xl shadow-modal border border-slate-100 animate-slide-up">
             {/* Tabs */}
             <div className="flex border-b border-slate-100" role="tablist">
               {TRANSACTION_TYPES.map(({ value, label }) => (
@@ -90,7 +90,7 @@ export default function Hero() {
                     <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform flex-shrink-0', cityOpen && 'rotate-180')} />
                   </button>
                   {cityOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-2xl shadow-modal border border-slate-100 p-2 z-20 animate-slide-down">
+                    <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-2xl shadow-modal border border-slate-100 p-2 z-50 animate-slide-down max-h-72 overflow-y-auto">
                       <button type="button" onClick={() => { setCity(''); setCityOpen(false); }} className="w-full text-left px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-brand-50 hover:text-brand-700">🇳 All India</button>
                       <p className="px-3 py-1 text-xs font-semibold text-slate-400 uppercase tracking-wider mt-1">Popular Cities</p>
                       <div className="grid grid-cols-2 gap-0.5 max-h-48 overflow-y-auto">

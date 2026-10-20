@@ -11,15 +11,24 @@ import {
   X, Plus, Check, Loader2, AlertCircle, Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PROPERTY_CATEGORIES, POST_TRANSACTION_TYPES, AREA_UNITS, INDIAN_STATES, SELLER_TYPES } from '@/lib/constants';
+import { PROPERTY_CATEGORIES, POST_TRANSACTION_TYPES, AREA_UNITS, SELLER_TYPES } from '@/lib/constants';
+import {
+  TALUKS,
+  MUNICIPALITIES,
+  BLOCKS_AND_PANCHAYATS,
+  KOTTAYAM_KEY_LOCALITIES,
+  DISTRICT,
+  STATE,
+} from '@/lib/constants/kottayam-locations';
 
 type Step = 1 | 2;
 
 interface FormData {
   transaction_type: string;
   category_slug: string;
-  state: string;
-  city: string;
+  // Kottayam location hierarchy
+  taluk: string;
+  town_panchayat: string;
   locality: string;
   pincode: string;
   price: string;
@@ -40,7 +49,8 @@ interface FormData {
 }
 
 const DEFAULT_FORM: FormData = {
-  transaction_type: 'sale', category_slug: '', state: '', city: '', locality: '',
+  transaction_type: 'sale', category_slug: '',
+  taluk: '', town_panchayat: '', locality: '',
   pincode: '', price: '', area: '', area_unit: 'sqft', seller_name: '', seller_phone: '',
   seller_type: 'owner', bedrooms: '', bathrooms: '', floor: '', total_floors: '',
   furnishing: '', parking: '', title: '', description: '',
@@ -83,8 +93,8 @@ export default function PostPropertyPage() {
     const e: Partial<FormData> = {};
     if (!form.transaction_type) e.transaction_type = 'Required';
     if (!form.category_slug)    e.category_slug    = 'Required';
-    if (!form.state)            e.state            = 'Required';
-    if (!form.city)             e.city             = 'Required';
+    if (!form.taluk)            e.taluk            = 'Required';
+    if (!form.town_panchayat)   e.town_panchayat   = 'Required';
     if (!form.price)            e.price            = 'Required';
     if (!form.area)             e.area             = 'Required';
     if (!form.seller_name)      e.seller_name      = 'Required';
@@ -101,7 +111,7 @@ export default function PostPropertyPage() {
         form.bedrooms ? `${form.bedrooms} BHK` : '',
         cat?.label ?? '',
         form.transaction_type === 'sale' ? 'for Sale' : form.transaction_type === 'rent' ? 'for Rent' : 'for Lease',
-        form.city ? `in ${form.city}` : '',
+        form.town_panchayat ? `in ${form.town_panchayat}` : '',
       ].filter(Boolean).join(' ');
       setField('title', title || 'Property Listing');
       setStep(2);
@@ -205,32 +215,85 @@ export default function PostPropertyPage() {
                 {errors.category_slug && <Error msg={errors.category_slug} />}
               </div>
 
-              {/* Location */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="label">State *</label>
-                  <select className={cn('input', errors.state && 'border-red-400')}
-                    value={form.state} onChange={e => setField('state', e.target.value)}>
-                    <option value="">Select state…</option>
-                    {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                  {errors.state && <Error msg={errors.state} />}
+              {/* Location — Kottayam District only */}
+              <div>
+                {/* District lock banner */}
+                <div className="flex items-center gap-2 bg-brand-50 border border-brand-100 rounded-xl px-4 py-2.5 mb-4">
+                  <MapPin className="w-4 h-4 text-brand-600 flex-shrink-0" />
+                  <p className="text-sm text-brand-700 font-medium">
+                    Phase 1: Properties in <strong>{DISTRICT} District, {STATE}</strong> only.
+                  </p>
                 </div>
-                <div>
-                  <label className="label">City *</label>
-                  <input className={cn('input', errors.city && 'border-red-400')}
-                    placeholder="e.g. Bangalore" value={form.city} onChange={e => setField('city', e.target.value)} />
-                  {errors.city && <Error msg={errors.city} />}
-                </div>
-                <div>
-                  <label className="label">Locality</label>
-                  <input className="input" placeholder="e.g. Whitefield" value={form.locality}
-                    onChange={e => setField('locality', e.target.value)} />
-                </div>
-                <div>
-                  <label className="label">PIN Code</label>
-                  <input className="input" placeholder="560001" maxLength={6} inputMode="numeric"
-                    value={form.pincode} onChange={e => setField('pincode', e.target.value.replace(/\D/g,'').slice(0,6))} />
+
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Taluk */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="label">Taluk *</label>
+                    <select
+                      className={cn('input', errors.taluk && 'border-red-400')}
+                      value={form.taluk}
+                      onChange={e => {
+                        setField('taluk', e.target.value);
+                        setField('town_panchayat', ''); // reset dependent
+                      }}
+                    >
+                      <option value="">Select Taluk…</option>
+                      {TALUKS.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    {errors.taluk && <Error msg={errors.taluk} />}
+                  </div>
+
+                  {/* Town / Municipality / Panchayat */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="label">Town / Panchayat *</label>
+                    <select
+                      className={cn('input', errors.town_panchayat && 'border-red-400')}
+                      value={form.town_panchayat}
+                      onChange={e => setField('town_panchayat', e.target.value)}
+                      disabled={!form.taluk}
+                    >
+                      <option value="">{form.taluk ? 'Select…' : 'Select Taluk first'}</option>
+                      {form.taluk && (() => {
+                        const munis = MUNICIPALITIES
+                          .filter(m => m.taluk === form.taluk)
+                          .map(m => m.name);
+                        const panchayats = BLOCKS_AND_PANCHAYATS
+                          .filter(b => b.taluk === form.taluk)
+                          .flatMap(b => b.panchayats);
+                        const all = [...new Set([...munis, ...panchayats])].sort();
+                        return all.map(p => <option key={p} value={p}>{p}</option>);
+                      })()}
+                    </select>
+                    {errors.town_panchayat && <Error msg={errors.town_panchayat} />}
+                  </div>
+
+                  {/* Locality / Area (optional free-text) */}
+                  <div className="col-span-2">
+                    <label className="label">Locality / Area <span className="text-slate-400 font-normal">(optional)</span></label>
+                    <input
+                      className="input"
+                      placeholder="e.g. Baker Junction, MC Road, Peroor Junction"
+                      value={form.locality}
+                      onChange={e => setField('locality', e.target.value)}
+                      list="kottayam-localities"
+                    />
+                    <datalist id="kottayam-localities">
+                      {KOTTAYAM_KEY_LOCALITIES.map(l => <option key={l} value={l} />)}
+                    </datalist>
+                  </div>
+
+                  {/* PIN Code */}
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="label">PIN Code</label>
+                    <input
+                      className="input"
+                      placeholder="686001"
+                      maxLength={6}
+                      inputMode="numeric"
+                      value={form.pincode}
+                      onChange={e => setField('pincode', e.target.value.replace(/\D/g,'').slice(0,6))}
+                    />
+                  </div>
                 </div>
               </div>
 

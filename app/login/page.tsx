@@ -6,20 +6,18 @@ import Link from 'next/link';
 import { Phone, Shield, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 type Step = 'phone' | 'otp';
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
 
-  const [step, setStep]           = useState<Step>('phone');
-  const [phone, setPhone]         = useState('');
-  const [otp, setOtp]             = useState(['', '', '', '', '', '']);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState('');
+  const [step, setStep]               = useState<Step>('phone');
+  const [phone, setPhone]             = useState('');
+  const [otp, setOtp]                 = useState(['', '', '', '', '', '']);
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState('');
   const [resendTimer, setResendTimer] = useState(0);
 
   // Countdown timer for resend
@@ -29,82 +27,80 @@ export default function LoginPage() {
     return () => clearTimeout(t);
   }, [resendTimer]);
 
-  // ── Step 1: Send OTP ────────────────────────────────────────────────────────
+  // ── Step 1: Send OTP ──────────────────────────────────────────────────────
   async function handlePhoneSubmit(e: React.FormEvent) {
     e.preventDefault();
     const clean = phone.replace(/\D/g, '');
-    if (clean.length !== 10) {
-      setError('Please enter a valid 10-digit mobile number');
-      return;
-    }
+    if (clean.length !== 10) { setError('Please enter a valid 10-digit mobile number'); return; }
     setError('');
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: `+91${clean}`,
+      const res  = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: clean }),
       });
-      if (error) throw error;
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send OTP');
       setStep('otp');
       setResendTimer(30);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send OTP. Please try again.';
-      setError(msg);
+      setError(err instanceof Error ? err.message : 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
     }
   }
 
-  // ── Step 2: Verify OTP ──────────────────────────────────────────────────────
+  // ── Step 2: Verify OTP ────────────────────────────────────────────────────
   async function handleOtpSubmit(e: React.FormEvent) {
     e.preventDefault();
     const code = otp.join('');
-    if (code.length !== 6) {
-      setError('Please enter the complete 6-digit OTP');
-      return;
-    }
+    if (code.length !== 6) { setError('Please enter the complete 6-digit OTP'); return; }
     setError('');
     setLoading(true);
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        phone: `+91${phone.replace(/\D/g, '')}`,
-        token: code,
-        type: 'sms',
+      const res  = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.replace(/\D/g, ''), otp: code }),
       });
-      if (error) throw error;
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Verification failed');
       router.push('/dashboard');
       router.refresh();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invalid OTP. Please try again.';
-      setError(msg);
+      setError(err instanceof Error ? err.message : 'Invalid OTP. Please try again.');
       setOtp(['', '', '', '', '', '']);
-      document.getElementById('otp-0')?.focus();
+      setTimeout(() => document.getElementById('otp-0')?.focus(), 50);
     } finally {
       setLoading(false);
     }
   }
 
-  // ── Resend OTP ──────────────────────────────────────────────────────────────
+  // ── Resend OTP ────────────────────────────────────────────────────────────
   async function handleResend() {
-    if (resendTimer > 0) return;
+    if (resendTimer > 0 || loading) return;
     setError('');
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        phone: `+91${phone.replace(/\D/g, '')}`,
+      const res  = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: phone.replace(/\D/g, '') }),
       });
-      if (error) throw error;
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to resend OTP');
       setOtp(['', '', '', '', '', '']);
       setResendTimer(30);
-      document.getElementById('otp-0')?.focus();
+      setTimeout(() => document.getElementById('otp-0')?.focus(), 50);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to resend OTP.';
-      setError(msg);
+      setError(err instanceof Error ? err.message : 'Failed to resend OTP.');
     } finally {
       setLoading(false);
     }
   }
 
-  // ── OTP input helpers ───────────────────────────────────────────────────────
+  // ── OTP box helpers ───────────────────────────────────────────────────────
   function handleOtpChange(idx: number, val: string) {
     if (!/^\d?$/.test(val)) return;
     const next = [...otp];
@@ -121,14 +117,13 @@ export default function LoginPage() {
   function handleOtpPaste(e: React.ClipboardEvent) {
     e.preventDefault();
     const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6).split('');
-    const next = ['', '', '', '', '', ''];
+    const next   = ['', '', '', '', '', ''];
     digits.forEach((d, i) => { next[i] = d; });
     setOtp(next);
-    const focusIdx = Math.min(digits.length, 5);
-    document.getElementById(`otp-${focusIdx}`)?.focus();
+    setTimeout(() => document.getElementById(`otp-${Math.min(digits.length, 5)}`)?.focus(), 10);
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
       <Header />
@@ -175,7 +170,11 @@ export default function LoginPage() {
 
                 {error && <p className="text-red-500 text-xs">{error}</p>}
 
-                <button type="submit" disabled={loading || phone.replace(/\D/g,'').length !== 10} className="btn-primary btn-lg w-full">
+                <button
+                  type="submit"
+                  disabled={loading || phone.replace(/\D/g, '').length !== 10}
+                  className="btn-primary btn-lg w-full"
+                >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send OTP'}
                 </button>
 
@@ -208,7 +207,7 @@ export default function LoginPage() {
                         inputMode="numeric"
                         maxLength={1}
                         value={d}
-                        onChange={e => handleOtpChange(i, e.target.value)}
+                        onChange={e  => handleOtpChange(i, e.target.value)}
                         onKeyDown={e => handleOtpKeyDown(i, e)}
                         onPaste={i === 0 ? handleOtpPaste : undefined}
                         className={cn(
@@ -224,7 +223,11 @@ export default function LoginPage() {
 
                 {error && <p className="text-red-500 text-xs text-center">{error}</p>}
 
-                <button type="submit" disabled={loading || otp.join('').length !== 6} className="btn-primary btn-lg w-full">
+                <button
+                  type="submit"
+                  disabled={loading || otp.join('').length !== 6}
+                  className="btn-primary btn-lg w-full"
+                >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify & Login'}
                 </button>
 
@@ -239,7 +242,7 @@ export default function LoginPage() {
                       type="button"
                       onClick={handleResend}
                       disabled={loading}
-                      className="flex items-center gap-1.5 text-xs text-brand-600 hover:underline mx-auto"
+                      className="flex items-center gap-1.5 text-xs text-brand-600 hover:underline mx-auto disabled:opacity-50"
                     >
                       <RefreshCw className="w-3 h-3" /> Resend OTP
                     </button>

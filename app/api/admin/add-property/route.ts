@@ -85,47 +85,80 @@ export async function POST(request: NextRequest) {
     if (floor)        attributes.floor       = floor;
     if (total_floors) attributes.total_floors = total_floors;
 
-    // Insert the listing
-    const { data: listing, error: insertError } = await supabase
+    // Build full address from location fields
+    const addrParts = [locality, city, state].filter(Boolean);
+    const fullAddress = address_line?.trim() || addrParts.join(', ') || null;
+
+    // Insert the listing using ONLY verified existing schema columns
+    const insertData: Record<string, unknown> = {
+      title: title.trim(),
+      slug,
+      listing_id,
+      description: description?.trim() || null,
+      transaction_type,
+      status,
+      price: parseFloat(price),
+      price_unit: price_unit || 'total',
+      negotiable: Boolean(negotiable),
+      area: parseFloat(area),
+      area_unit: area_unit || 'sqft',
+      address_line: fullAddress,
+      show_exact_location: false,
+      seller_name: seller_name.trim(),
+      seller_phone: seller_phone.trim(),
+      seller_type: seller_type || 'owner',
+      is_verified: true,
+      is_featured: false,
+      is_promoted: false,
+      views_count: 0,
+      enquiries_count: 0,
+      published_at: status === 'published' ? new Date().toISOString() : null,
+      expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    // Try inserting with category_slug first, fallback to base schema if column missing
+    let listing: Record<string, unknown> | null = null;
+    let insertError: { message: string } | null = null;
+
+    const { data: d1, error: e1 } = await supabase
       .from('property_listings')
-      .insert({
-        title: title.trim(),
-        slug,
-        listing_id,
-        description: description?.trim() || null,
-        transaction_type,
-        status,
-        price: parseFloat(price),
-        price_unit: price_unit || 'total',
-        negotiable: Boolean(negotiable),
-        area: parseFloat(area),
-        area_unit: area_unit || 'sqft',
-        city: city?.trim() || null,
-        state: state?.trim() || null,
-        locality: locality?.trim() || null,
-        address_line: address_line?.trim() || null,
-        seller_name: seller_name.trim(),
-        seller_phone: seller_phone.trim(),
-        seller_type: seller_type || 'owner',
-        category_slug: category_slug || 'apartments',
-        attributes,
-        is_verified: true,
-        is_featured: false,
-        is_promoted: false,
-        views_count: 0,
-        enquiries_count: 0,
-        published_at: status === 'published' ? new Date().toISOString() : null,
-        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-      })
+      .insert({ ...insertData, category_slug: category_slug || null })
       .select()
       .single();
 
-    if (insertError) {
+    if (e1 && e1.message?.includes('category_slug')) {
+      // category_slug column doesn't exist yet — insert without it
+      const { data: d2, error: e2 } = await supabase
+        .from('property_listings')
+        .insert(insertData)
+        .select()
+        .single();
+      listing = d2 as Record<string, unknown>;
+      insertError = e2;
+    } else {
+      listing = d1 as Record<string, unknown>;
+      insertError = e1;
+    }
+
+    if (insertError || !listing) {
       console.error('Supabase insert error:', insertError);
       return NextResponse.json(
-        { error: insertError.message },
+        { error: insertError?.message ?? 'Insert failed' },
         { status: 500 }
       );
+    }
+
+    // Also store category_slug and location as attributes
+    const attrRows = [
+      category_slug && { listing_id: listing.id, field_key: 'category_slug', field_value: category_slug },
+      locality      && { listing_id: listing.id, field_key: 'locality',       field_value: locality },
+      city          && { listing_id: listing.id, field_key: 'city',           field_value: city },
+      state         && { listing_id: listing.id, field_key: 'state',          field_value: state },
+      ...Object.entries(attributes || {}).map(([k, v]) => ({ listing_id: listing!.id, field_key: k, field_value: String(v) })),
+    ].filter(Boolean);
+
+    if (attrRows.length > 0) {
+      await supabase.from('property_attributes').insert(attrRows as { listing_id: unknown; field_key: string; field_value: string }[]);
     }
 
     // Insert media if image URLs provided

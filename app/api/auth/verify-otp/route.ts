@@ -12,18 +12,18 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, otp } = await req.json();
+    const { email, otp, challengeToken } = await req.json();
     const cleanEmail = String(email ?? '').trim().toLowerCase();
 
     if (!cleanEmail.includes('@') || !otp || String(otp).length !== 6) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
-    // Read the OTP challenge cookie
-    const challenge = req.cookies.get('otp_challenge')?.value;
+    // Read the OTP challenge from request body (sent by client)
+    const challenge = challengeToken as string | undefined;
     if (!challenge) {
       return NextResponse.json(
-        { error: 'OTP expired or not found. Please request a new one.' },
+        { error: 'OTP session missing. Please request a new OTP.' },
         { status: 400 }
       );
     }
@@ -91,8 +91,7 @@ export async function POST(req: NextRequest) {
           path:     '/',
         });
         res.cookies.set('otp_challenge', '', { maxAge: 0, path: '/' });
-        return res;
-      }
+        return res;      }
       user = newUser;
     }
 

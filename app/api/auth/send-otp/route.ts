@@ -68,17 +68,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Store challenge in a signed httpOnly cookie (no DB table needed)
-    const response = NextResponse.json({ success: true });
-    response.cookies.set('otp_challenge', challenge, {
-      httpOnly: true,
-      secure:   process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge:   10 * 60, // 10 minutes
-      path:     '/',
-    });
-
-    return response;
+    // Return challenge token in response body (client stores in state — no cookie issues)
+    return NextResponse.json({ success: true, challengeToken: challenge });
 
   } catch (err) {
     console.error('[send-otp] Unexpected error:', err);

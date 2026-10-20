@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState('');
   const [resendTimer, setResendTimer] = useState(0);
+  const [challengeToken, setChallengeToken] = useState('');
 
   // Countdown for resend button
   useEffect(() => {
@@ -43,8 +44,9 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: clean }),
       });
-      const data = await res.json() as { success?: boolean; error?: string };
+      const data = await res.json() as { success?: boolean; error?: string; challengeToken?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to send OTP');
+      setChallengeToken(data.challengeToken ?? '');
       setStep('otp');
       setResendTimer(60);
     } catch (err: unknown) {
@@ -65,7 +67,7 @@ export default function LoginPage() {
       const res  = await fetch('/api/auth/verify-otp', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.trim().toLowerCase(), otp: code }),
+        body:    JSON.stringify({ email: email.trim().toLowerCase(), otp: code, challengeToken }),
       });
       const data = await res.json() as { success?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Verification failed');
@@ -91,8 +93,9 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      const data = await res.json() as { success?: boolean; error?: string };
+      const data = await res.json() as { success?: boolean; error?: string; challengeToken?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to resend OTP');
+      setChallengeToken(data.challengeToken ?? '');
       setOtp(['', '', '', '', '', '']);
       setResendTimer(60);
       setTimeout(() => document.getElementById('otp-0')?.focus(), 50);

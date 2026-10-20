@@ -21,26 +21,28 @@ export async function POST(req: NextRequest) {
     const sig     = createHmac('sha256', SECRET).update(payload).digest('base64url');
     const challenge = `${payload}.${sig}`;
 
-    // Send OTP email via Resend
-    const resendKey = process.env.RESEND_API_KEY;
-    if (!resendKey) {
+    // Send OTP email via Brevo (formerly Sendinblue)
+    const brevoKey   = process.env.BREVO_API_KEY;
+    const senderEmail = process.env.BREVO_SENDER_EMAIL; // your verified sender email
+    if (!brevoKey || !senderEmail) {
       return NextResponse.json(
-        { error: 'Email provider not configured. Add RESEND_API_KEY to Vercel env vars.' },
+        { error: 'Email provider not configured. Add BREVO_API_KEY and BREVO_SENDER_EMAIL to Vercel env vars.' },
         { status: 500 }
       );
     }
 
-    const emailRes = await fetch('https://api.resend.com/emails', {
+    const emailRes = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${resendKey}`,
-        'Content-Type':  'application/json',
+        'api-key':      brevoKey,
+        'Content-Type': 'application/json',
+        'Accept':       'application/json',
       },
       body: JSON.stringify({
-        from:    'qkit <onboarding@resend.dev>',
-        to:      [cleanEmail],
-        subject: `${otp} is your qkit login code`,
-        html: `
+        sender:      { name: 'qkit', email: senderEmail },
+        to:          [{ email: cleanEmail }],
+        subject:     `${otp} is your qkit login code`,
+        htmlContent: `
           <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
             <div style="background:#059669;width:48px;height:48px;border-radius:12px;margin-bottom:24px;display:inline-flex;align-items:center;justify-content:center">
               <span style="color:white;font-size:22px;font-weight:900;padding:0 10px;line-height:48px">q</span>
@@ -56,12 +58,12 @@ export async function POST(req: NextRequest) {
       }),
     });
 
-    const emailData = await emailRes.json() as { id?: string; name?: string; message?: string };
+    const emailData = await emailRes.json() as { messageId?: string; code?: string; message?: string };
 
     if (!emailRes.ok) {
-      console.error('[send-otp] Resend error:', emailData);
+      console.error('[send-otp] Brevo error:', emailData);
       return NextResponse.json(
-        { error: `Email failed: ${emailData.message ?? emailData.name ?? 'Unknown error'}` },
+        { error: `Email failed: ${emailData.message ?? 'Unknown error'}` },
         { status: 500 }
       );
     }

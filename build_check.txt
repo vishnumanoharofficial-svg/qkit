@@ -1,0 +1,75 @@
+﻿Γû▓ Next.js 16.4.0 (Turbopack)
+- Environments: .env.local
+Γ£ô Running next.config.mjs took 66ms
+node.exe : (node:20044) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS 
+connections and HTTPS requests insecure by disabling certificate verification.
+At line:1 char:153
++ ... IZED = "0"; & "$nodePath\node.exe" "C:\qkit\node_modules\next\dist\bi ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:20044) Wa...e verification.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 5.6s
+  Running TypeScript ...
+  Finished TypeScript in 9.0s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/38) ...
+  Generating static pages using 3 workers (9/38) 
+  Generating static pages using 3 workers (18/38) 
+  Generating static pages using 3 workers (28/38) 
+Γ£ô Generating static pages using 3 workers (38/38) in 2.2s
+  Finalizing page optimization ...
+
+Route (app)
+Γöî Γùï /
+Γö£ Γùï /_not-found
+Γö£ Γùï /about
+Γö£ ╞Æ /admin
+Γö£ Γùï /admin/categories
+Γö£ ╞Æ /admin/listings
+Γö£ Γùï /admin/listings/new
+Γö£ Γùï /admin/moderation
+Γö£ Γùï /admin/settings
+Γö£ ╞Æ /admin/users
+Γö£ ╞Æ /api/admin/add-property
+Γö£ ╞Æ /api/admin/moderate
+Γö£ ╞Æ /api/admin/settings
+Γö£ ╞Æ /api/admin/upload-image
+Γö£ ╞Æ /api/auth/me
+Γö£ ╞Æ /api/auth/send-otp
+Γö£ ╞Æ /api/auth/sms-hook
+Γö£ ╞Æ /api/auth/verify-otp
+Γö£ ╞Æ /api/enquiries
+Γö£ ╞Æ /api/favorites
+Γö£ ╞Æ /api/payments/create-order
+Γö£ ╞Æ /api/payments/verify
+Γö£ ╞Æ /api/properties
+Γö£ ╞Æ /api/run-migration
+Γö£ ╞Æ /api/search
+Γö£ Γùï /buy
+Γö£ Γùï /commercial
+Γö£ Γùï /contact
+Γö£ Γùï /dashboard
+Γö£ Γùï /dashboard/analytics
+Γö£ Γùï /dashboard/enquiries
+Γö£ Γùï /dashboard/favorites
+Γö£ Γùï /dashboard/listings
+Γö£ Γùï /lease
+Γö£ Γùï /login
+Γö£ Γùï /post-property
+Γö£ Γùï /privacy
+Γö£ Γùï /properties
+Γö£ ╞Æ /property/[slug]
+Γö£ Γùï /rent
+Γö£ Γùï /search
+Γöö Γùï /terms
+
+
+╞Æ Proxy (Middleware)
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

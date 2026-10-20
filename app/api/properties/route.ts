@@ -110,6 +110,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Resolve category_id from category_slug (property_listings has category_id FK NOT NULL)
+    let resolvedCategoryId: string | null = null;
+    if (category_slug) {
+      const { data: catRow } = await supabase
+        .from('property_categories')
+        .select('id')
+        .eq('slug', category_slug)
+        .maybeSingle();
+      resolvedCategoryId = catRow?.id ?? null;
+    }
+
     // Build the insert payload using ONLY existing schema columns
     // Kottayam-specific fields (taluk, town_panchayat, category_slug) are stored in address_line + attributes
     const insertPayload: Record<string, unknown> = {
@@ -136,6 +147,8 @@ export async function POST(request: NextRequest) {
       views_count:      0,
       enquiries_count:  0,
       expires_at:       new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      // category_id FK — include if resolved
+      ...(resolvedCategoryId ? { category_id: resolvedCategoryId } : {}),
     };
 
     // Attempt insert — try with extended Kottayam columns first, fallback to base schema

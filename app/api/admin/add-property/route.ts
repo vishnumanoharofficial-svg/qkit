@@ -72,6 +72,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Look up category_id from property_categories using category_slug
+    let resolvedCategoryId: string | null = null;
+    if (category_slug) {
+      const { data: catRow } = await supabase
+        .from('property_categories')
+        .select('id')
+        .eq('slug', category_slug)
+        .maybeSingle();
+      resolvedCategoryId = catRow?.id ?? null;
+    }
+
     const slug = generateSlug(title);
     const listing_id = generateListingId();
 
@@ -109,6 +120,8 @@ export async function POST(request: NextRequest) {
       seller_type: seller_type || 'owner',
       // Use a system admin UUID for admin-created listings
       user_id: '00000000-0000-0000-0000-000000000001',
+      // category_id FK — use resolved UUID or null (requires nullable migration)
+      ...(resolvedCategoryId ? { category_id: resolvedCategoryId } : {}),
       is_verified: true,
       is_featured: false,
       is_promoted: false,

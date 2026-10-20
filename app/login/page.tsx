@@ -21,6 +21,18 @@ export default function LoginPage() {
   const [resendTimer, setResendTimer] = useState(0);
   const [challengeToken, setChallengeToken] = useState('');
 
+  // Persist challenge token in sessionStorage so re-renders don't lose it
+  function saveChallenge(token: string) {
+    setChallengeToken(token);
+    if (typeof window !== 'undefined') sessionStorage.setItem('qkit_otp_challenge', token);
+  }
+
+  function loadChallenge(): string {
+    if (challengeToken) return challengeToken;
+    if (typeof window !== 'undefined') return sessionStorage.getItem('qkit_otp_challenge') ?? '';
+    return '';
+  }
+
   // Countdown for resend button
   useEffect(() => {
     if (resendTimer <= 0) return;
@@ -46,7 +58,7 @@ export default function LoginPage() {
       });
       const data = await res.json() as { success?: boolean; error?: string; challengeToken?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to send OTP');
-      setChallengeToken(data.challengeToken ?? '');
+      saveChallenge(data.challengeToken ?? '');
       setStep('otp');
       setResendTimer(60);
     } catch (err: unknown) {
@@ -67,7 +79,7 @@ export default function LoginPage() {
       const res  = await fetch('/api/auth/verify-otp', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.trim().toLowerCase(), otp: code, challengeToken }),
+        body:    JSON.stringify({ email: email.trim().toLowerCase(), otp: code, challengeToken: loadChallenge() }),
       });
       const data = await res.json() as { success?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Verification failed');
@@ -95,9 +107,8 @@ export default function LoginPage() {
       });
       const data = await res.json() as { success?: boolean; error?: string; challengeToken?: string };
       if (!res.ok) throw new Error(data.error ?? 'Failed to resend OTP');
-      setChallengeToken(data.challengeToken ?? '');
-      setOtp(['', '', '', '', '', '']);
-      setResendTimer(60);
+      saveChallenge(data.challengeToken ?? '');
+      setOtp(['', '', '', '', '', '']);      setResendTimer(60);
       setTimeout(() => document.getElementById('otp-0')?.focus(), 50);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to resend OTP.');

@@ -90,10 +90,30 @@ export async function POST(request: NextRequest) {
     const address_parts = [locality, town_panchayat, taluk, 'Kottayam', 'Kerala'].filter(Boolean);
     const address_line  = address_parts.join(', ');
 
+    // Resolve user_id — must be a valid UUID for the NOT NULL constraint
+    let resolvedUserId: string = session.userId;
+    const isUuid = /^[0-9a-f-]{36}$/.test(session.userId);
+    if (!isUuid) {
+      // session.userId is an email (fallback auth) — look up the real UUID in app_users
+      const { data: appUser } = await supabase
+        .from('app_users')
+        .select('id')
+        .or(`email.eq.${session.userId},phone.eq.${session.userId}`)
+        .maybeSingle();
+      if (appUser?.id) {
+        resolvedUserId = appUser.id;
+      } else {
+        // Deterministic UUID from email using MD5 hash
+        const { createHash } = await import('crypto');
+        const hash = createHash('md5').update(session.userId).digest('hex');
+        resolvedUserId = `${hash.slice(0,8)}-${hash.slice(8,12)}-${hash.slice(12,16)}-${hash.slice(16,20)}-${hash.slice(20,32)}`;
+      }
+    }
+
     // Build the insert payload using ONLY existing schema columns
     // Kottayam-specific fields (taluk, town_panchayat, category_slug) are stored in address_line + attributes
     const insertPayload: Record<string, unknown> = {
-      // Core fields (exist in schema)
+      user_id:          resolvedUserId,
       title,
       slug,
       description:      description || null,
@@ -117,10 +137,6 @@ export async function POST(request: NextRequest) {
       enquiries_count:  0,
       expires_at:       new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
     };
-
-    // Add user_id if it looks like a UUID (real DB user), otherwise skip
-    const isUuid = /^[0-9a-f-]{36}$/.test(session.userId);
-    if (isUuid) insertPayload.user_id = session.userId;
 
     // Attempt insert — try with extended Kottayam columns first, fallback to base schema
     let listing: Record<string, unknown> | null = null;

@@ -107,6 +107,8 @@ export async function POST(request: NextRequest) {
       seller_name: seller_name.trim(),
       seller_phone: seller_phone.trim(),
       seller_type: seller_type || 'owner',
+      // Use a system admin UUID for admin-created listings
+      user_id: '00000000-0000-0000-0000-000000000001',
       is_verified: true,
       is_featured: false,
       is_promoted: false,

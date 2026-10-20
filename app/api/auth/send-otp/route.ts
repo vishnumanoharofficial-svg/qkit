@@ -9,14 +9,12 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { phone } = await req.json();
-    const clean = String(phone ?? '').replace(/\D/g, '');
+    const { email } = await req.json();
+    const cleanEmail = String(email ?? '').trim().toLowerCase();
 
-    if (clean.length !== 10) {
-      return NextResponse.json({ error: 'Invalid phone number' }, { status: 400 });
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
     }
-
-    const fullPhone = `+91${clean}`;
 
     // Generate 6-digit OTP
     const otp     = String(randomInt(100000, 999999));
@@ -25,37 +23,57 @@ export async function POST(req: NextRequest) {
       .digest('hex');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
 
-    // Remove any old OTPs for this phone, insert fresh one
-    await supabase.from('otp_codes').delete().eq('phone', fullPhone);
+    // Remove old OTPs for this email, store fresh one
+    await supabase.from('otp_codes').delete().eq('phone', cleanEmail);
     const { error: dbError } = await supabase.from('otp_codes').insert({
-      phone:     fullPhone,
-      code_hash: otpHash,
+      phone:      cleanEmail,   // reusing 'phone' column to store email
+      code_hash:  otpHash,
       expires_at: expiresAt,
-      used:      false,
+      used:       false,
     });
 
     if (dbError) {
       console.error('[send-otp] DB error:', dbError);
-      return NextResponse.json({ error: 'Could not store OTP' }, { status: 500 });
+      return NextResponse.json({ error: 'Could not store OTP. Make sure the otp_codes table exists in Supabase.' }, { status: 500 });
     }
 
-    // Send SMS via 2factor.in
-    const apiKey = process.env.TWOFACTOR_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'SMS provider not configured' }, { status: 500 });
+    // Send OTP email via Resend
+    const resendKey = process.env.RESEND_API_KEY;
+    if (!resendKey) {
+      return NextResponse.json({ error: 'Email provider not configured (RESEND_API_KEY missing)' }, { status: 500 });
     }
 
-    const smsRes  = await fetch(
-      `https://2factor.in/API/V1/${apiKey}/SMS/${clean}/${otp}/AUTOGEN`
-    );
-    const smsData = await smsRes.json() as { Status: string; Details: string };
+    const emailRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify({
+        from:    'qkit <onboarding@resend.dev>',
+        to:      [cleanEmail],
+        subject: `${otp} is your qkit login code`,
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
+            <div style="background:#059669;width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:24px">
+              <span style="color:white;font-size:24px;font-weight:bold;line-height:48px;padding:0 12px">q</span>
+            </div>
+            <h2 style="font-size:22px;font-weight:700;color:#0f172a;margin:0 0 8px">Your qkit login code</h2>
+            <p style="color:#64748b;font-size:15px;margin:0 0 24px">Use this 6-digit code to sign in. It expires in 10 minutes.</p>
+            <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:12px;padding:20px;text-align:center;margin-bottom:24px">
+              <span style="font-size:36px;font-weight:800;letter-spacing:10px;color:#059669">${otp}</span>
+            </div>
+            <p style="color:#94a3b8;font-size:13px">If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        `,
+      }),
+    });
 
-    if (smsData.Status !== 'Success') {
-      console.error('[send-otp] 2factor error:', smsData);
-      return NextResponse.json(
-        { error: `SMS failed: ${smsData.Details ?? 'Unknown error'}` },
-        { status: 500 }
-      );
+    const emailData = await emailRes.json() as { id?: string; error?: string };
+
+    if (!emailRes.ok) {
+      console.error('[send-otp] Resend error:', emailData);
+      return NextResponse.json({ error: `Email failed: ${emailData.error ?? 'Unknown error'}` }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

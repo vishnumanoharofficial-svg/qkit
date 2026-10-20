@@ -6,14 +6,12 @@ import Link from 'next/link';
 import { Mail, Shield, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 type Step = 'email' | 'otp';
 
 export default function LoginPage() {
-  const router   = useRouter();
-  const supabase = createClient();
+  const router = useRouter();
 
   const [step, setStep]               = useState<Step>('email');
   const [email, setEmail]             = useState('');
@@ -22,7 +20,7 @@ export default function LoginPage() {
   const [error, setError]             = useState('');
   const [resendTimer, setResendTimer] = useState(0);
 
-  // Countdown for resend
+  // Countdown for resend button
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setTimeout(() => setResendTimer(r => r - 1), 1000);
@@ -32,18 +30,21 @@ export default function LoginPage() {
   // ── Step 1: Send OTP to email ─────────────────────────────────────────────
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email.includes('@') || !email.includes('.')) {
+    const clean = email.trim().toLowerCase();
+    if (!clean.includes('@') || !clean.includes('.')) {
       setError('Please enter a valid email address');
       return;
     }
     setError('');
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true },
+      const res  = await fetch('/api/auth/send-otp', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: clean }),
       });
-      if (error) throw error;
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send OTP');
       setStep('otp');
       setResendTimer(60);
     } catch (err: unknown) {
@@ -61,12 +62,13 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        email,
-        token: code,
-        type: 'email',
+      const res  = await fetch('/api/auth/verify-otp', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: email.trim().toLowerCase(), otp: code }),
       });
-      if (error) throw error;
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Verification failed');
       router.push('/dashboard');
       router.refresh();
     } catch (err: unknown) {
@@ -84,11 +86,13 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true },
+      const res  = await fetch('/api/auth/send-otp', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      if (error) throw error;
+      const data = await res.json() as { success?: boolean; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to resend OTP');
       setOtp(['', '', '', '', '', '']);
       setResendTimer(60);
       setTimeout(() => document.getElementById('otp-0')?.focus(), 50);
@@ -149,7 +153,7 @@ export default function LoginPage() {
               </p>
             </div>
 
-            {/* ── STEP 1: Email ── */}
+            {/* ── STEP 1: Email input ── */}
             {step === 'email' ? (
               <form onSubmit={handleEmailSubmit} className="space-y-4">
                 <div>
@@ -159,7 +163,7 @@ export default function LoginPage() {
                     <input
                       type="email"
                       value={email}
-                      onChange={e => setEmail(e.target.value.trim())}
+                      onChange={e => setEmail(e.target.value)}
                       placeholder="you@example.com"
                       className="flex-1 py-3 text-sm text-slate-900 outline-none bg-transparent"
                       autoFocus
@@ -187,7 +191,7 @@ export default function LoginPage() {
               </form>
 
             ) : (
-              /* ── STEP 2: OTP ── */
+              /* ── STEP 2: OTP input ── */
               <form onSubmit={handleOtpSubmit} className="space-y-5">
                 <button
                   type="button"
@@ -232,10 +236,12 @@ export default function LoginPage() {
                   disabled={loading || otp.join('').length !== 6}
                   className="btn-primary btn-lg w-full"
                 >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify & Login'}
+                  {loading
+                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                    : 'Verify & Login'}
                 </button>
 
-                {/* Resend */}
+                {/* Resend timer */}
                 <div className="text-center">
                   {resendTimer > 0 ? (
                     <p className="text-xs text-slate-400">

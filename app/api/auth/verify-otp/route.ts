@@ -10,30 +10,32 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { phone, otp } = await req.json();
-    const clean = String(phone ?? '').replace(/\D/g, '');
+    const { email, otp } = await req.json();
+    const cleanEmail = String(email ?? '').trim().toLowerCase();
 
-    if (clean.length !== 10 || !otp || String(otp).length !== 6) {
+    if (!cleanEmail.includes('@') || !otp || String(otp).length !== 6) {
       return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
-    const fullPhone = `+91${clean}`;
-    const otpHash   = createHash('sha256')
+    const otpHash = createHash('sha256')
       .update(String(otp) + (process.env.NEXTAUTH_SECRET ?? 'qkit'))
       .digest('hex');
 
-    // Verify OTP from DB
-    const { data: otpRecord, error: otpErr } = await supabase
+    // Verify OTP from DB (email stored in 'phone' column)
+    const { data: otpRecord } = await supabase
       .from('otp_codes')
       .select('*')
-      .eq('phone', fullPhone)
+      .eq('phone', cleanEmail)
       .eq('code_hash', otpHash)
       .eq('used', false)
       .gte('expires_at', new Date().toISOString())
       .maybeSingle();
 
-    if (otpErr || !otpRecord) {
-      return NextResponse.json({ error: 'Invalid or expired OTP. Please try again.' }, { status: 400 });
+    if (!otpRecord) {
+      return NextResponse.json(
+        { error: 'Invalid or expired OTP. Please try again.' },
+        { status: 400 }
+      );
     }
 
     // Mark OTP as used
@@ -43,13 +45,13 @@ export async function POST(req: NextRequest) {
     let { data: user } = await supabase
       .from('app_users')
       .select('*')
-      .eq('phone', fullPhone)
+      .eq('phone', cleanEmail)
       .maybeSingle();
 
     if (!user) {
       const { data: newUser, error: createErr } = await supabase
         .from('app_users')
-        .insert({ phone: fullPhone })
+        .insert({ phone: cleanEmail })
         .select('*')
         .single();
 
@@ -61,7 +63,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Issue session cookie
-    const token = createSessionToken({ userId: user.id, phone: fullPhone, name: user.name });
+    const token = createSessionToken({
+      userId: user.id,
+      phone:  cleanEmail,  // storing email in phone field
+      name:   user.name ?? undefined,
+    });
 
     const response = NextResponse.json({ success: true, isNew: !user.name });
     response.cookies.set(COOKIE_NAME, token, {

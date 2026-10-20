@@ -72,6 +72,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Ensure system admin user exists in app_users
+    const ADMIN_USER_ID = '00000000-0000-0000-0000-000000000001';
+    await supabase
+      .from('app_users')
+      .upsert(
+        { id: ADMIN_USER_ID, phone: 'admin@qkit.in', name: 'Admin' },
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+
     // Look up category_id from property_categories using category_slug
     let resolvedCategoryId: string | null = null;
     if (category_slug) {

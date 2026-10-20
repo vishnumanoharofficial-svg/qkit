@@ -83,8 +83,8 @@ export default function LoginPage() {
       });
       const data = await res.json() as { success?: boolean; error?: string };
       if (!res.ok) throw new Error(data.error ?? 'Verification failed');
-      router.push('/dashboard');
-      router.refresh();
+      // Hard navigation so the new session cookie is sent with the request
+      window.location.href = '/dashboard';
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid OTP. Please try again.');
       setOtp(['', '', '', '', '', '']);

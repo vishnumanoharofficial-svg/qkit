@@ -20,7 +20,8 @@ export function proxy(request: NextRequest) {
 
   if (isProtected) {
     const sessionCookie = request.cookies.get('sb-access-token') ||
-                          request.cookies.get('sb-auth-token');
+                          request.cookies.get('sb-auth-token') ||
+                          request.cookies.get('qkit_session');   // custom email OTP session
     if (!sessionCookie) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);

@@ -3,47 +3,49 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Phone, Shield, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
+import { Mail, Shield, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
-type Step = 'phone' | 'otp';
+type Step = 'email' | 'otp';
 
 export default function LoginPage() {
-  const router = useRouter();
+  const router   = useRouter();
+  const supabase = createClient();
 
-  const [step, setStep]               = useState<Step>('phone');
-  const [phone, setPhone]             = useState('');
+  const [step, setStep]               = useState<Step>('email');
+  const [email, setEmail]             = useState('');
   const [otp, setOtp]                 = useState(['', '', '', '', '', '']);
   const [loading, setLoading]         = useState(false);
   const [error, setError]             = useState('');
   const [resendTimer, setResendTimer] = useState(0);
 
-  // Countdown timer for resend
+  // Countdown for resend
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setTimeout(() => setResendTimer(r => r - 1), 1000);
     return () => clearTimeout(t);
   }, [resendTimer]);
 
-  // ── Step 1: Send OTP ──────────────────────────────────────────────────────
-  async function handlePhoneSubmit(e: React.FormEvent) {
+  // ── Step 1: Send OTP to email ─────────────────────────────────────────────
+  async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const clean = phone.replace(/\D/g, '');
-    if (clean.length !== 10) { setError('Please enter a valid 10-digit mobile number'); return; }
+    if (!email.includes('@') || !email.includes('.')) {
+      setError('Please enter a valid email address');
+      return;
+    }
     setError('');
     setLoading(true);
     try {
-      const res  = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: clean }),
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true },
       });
-      const data = await res.json() as { success?: boolean; error?: string };
-      if (!res.ok) throw new Error(data.error ?? 'Failed to send OTP');
+      if (error) throw error;
       setStep('otp');
-      setResendTimer(30);
+      setResendTimer(60);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to send OTP. Please try again.');
     } finally {
@@ -59,13 +61,12 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const res  = await fetch('/api/auth/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone.replace(/\D/g, ''), otp: code }),
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: code,
+        type: 'email',
       });
-      const data = await res.json() as { success?: boolean; error?: string };
-      if (!res.ok) throw new Error(data.error ?? 'Verification failed');
+      if (error) throw error;
       router.push('/dashboard');
       router.refresh();
     } catch (err: unknown) {
@@ -83,15 +84,13 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      const res  = await fetch('/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone.replace(/\D/g, '') }),
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: true },
       });
-      const data = await res.json() as { success?: boolean; error?: string };
-      if (!res.ok) throw new Error(data.error ?? 'Failed to resend OTP');
+      if (error) throw error;
       setOtp(['', '', '', '', '', '']);
-      setResendTimer(30);
+      setResendTimer(60);
       setTimeout(() => document.getElementById('otp-0')?.focus(), 50);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to resend OTP.');
@@ -104,9 +103,10 @@ export default function LoginPage() {
   function handleOtpChange(idx: number, val: string) {
     if (!/^\d?$/.test(val)) return;
     const next = [...otp];
-    next[idx] = val;
+    next[idx]  = val;
     setOtp(next);
-    if (val && idx < 5) (document.getElementById(`otp-${idx + 1}`) as HTMLInputElement)?.focus();
+    if (val && idx < 5)
+      (document.getElementById(`otp-${idx + 1}`) as HTMLInputElement)?.focus();
   }
 
   function handleOtpKeyDown(idx: number, e: React.KeyboardEvent) {
@@ -120,7 +120,10 @@ export default function LoginPage() {
     const next   = ['', '', '', '', '', ''];
     digits.forEach((d, i) => { next[i] = d; });
     setOtp(next);
-    setTimeout(() => document.getElementById(`otp-${Math.min(digits.length, 5)}`)?.focus(), 10);
+    setTimeout(
+      () => document.getElementById(`otp-${Math.min(digits.length, 5)}`)?.focus(),
+      10
+    );
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -137,34 +140,31 @@ export default function LoginPage() {
                 <span className="font-heading font-bold text-white text-2xl">q</span>
               </div>
               <h1 className="font-heading font-bold text-2xl text-slate-900">
-                {step === 'phone' ? 'Welcome to qkit' : 'Verify Your Number'}
+                {step === 'email' ? 'Welcome to qkit' : 'Check Your Email'}
               </h1>
               <p className="text-slate-500 text-sm mt-1">
-                {step === 'phone'
+                {step === 'email'
                   ? 'Login or create your account in seconds'
-                  : `OTP sent to +91 ${phone}`}
+                  : `We sent a 6-digit OTP to ${email}`}
               </p>
             </div>
 
-            {/* ── STEP 1: Phone ── */}
-            {step === 'phone' ? (
-              <form onSubmit={handlePhoneSubmit} className="space-y-4">
+            {/* ── STEP 1: Email ── */}
+            {step === 'email' ? (
+              <form onSubmit={handleEmailSubmit} className="space-y-4">
                 <div>
-                  <label className="label">Mobile Number</label>
-                  <div className="flex items-center gap-2 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-transparent bg-white overflow-hidden">
-                    <span className="pl-4 text-sm font-medium text-slate-500 flex-shrink-0">+91</span>
+                  <label className="label">Email Address</label>
+                  <div className="flex items-center gap-2 border border-slate-200 rounded-xl focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-transparent bg-white overflow-hidden px-4">
+                    <Mail className="w-4 h-4 text-slate-400 flex-shrink-0" />
                     <input
-                      type="tel"
-                      inputMode="numeric"
-                      maxLength={10}
-                      value={phone}
-                      onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      placeholder="9XXXXXXXXX"
-                      className="flex-1 py-3 pr-4 text-sm text-slate-900 outline-none bg-transparent"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value.trim())}
+                      placeholder="you@example.com"
+                      className="flex-1 py-3 text-sm text-slate-900 outline-none bg-transparent"
                       autoFocus
                       required
                     />
-                    <Phone className="w-4 h-4 text-slate-400 mr-3" />
                   </div>
                 </div>
 
@@ -172,7 +172,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading || phone.replace(/\D/g, '').length !== 10}
+                  disabled={loading || !email.includes('@')}
                   className="btn-primary btn-lg w-full"
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send OTP'}
@@ -180,7 +180,8 @@ export default function LoginPage() {
 
                 <p className="text-xs text-slate-400 text-center">
                   By continuing you agree to our{' '}
-                  <Link href="/terms" className="underline hover:text-slate-600">Terms</Link> and{' '}
+                  <Link href="/terms" className="underline hover:text-slate-600">Terms</Link>{' '}
+                  and{' '}
                   <Link href="/privacy" className="underline hover:text-slate-600">Privacy Policy</Link>
                 </p>
               </form>
@@ -190,10 +191,10 @@ export default function LoginPage() {
               <form onSubmit={handleOtpSubmit} className="space-y-5">
                 <button
                   type="button"
-                  onClick={() => { setStep('phone'); setOtp(['', '', '', '', '', '']); setError(''); }}
+                  onClick={() => { setStep('email'); setOtp(['', '', '', '', '', '']); setError(''); }}
                   className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700 mb-2"
                 >
-                  <ArrowLeft className="w-4 h-4" /> Change number
+                  <ArrowLeft className="w-4 h-4" /> Change email
                 </button>
 
                 <div>
@@ -219,6 +220,9 @@ export default function LoginPage() {
                       />
                     ))}
                   </div>
+                  <p className="text-xs text-slate-400 text-center mt-3">
+                    Check your inbox and spam folder
+                  </p>
                 </div>
 
                 {error && <p className="text-red-500 text-xs text-center">{error}</p>}
@@ -235,7 +239,8 @@ export default function LoginPage() {
                 <div className="text-center">
                   {resendTimer > 0 ? (
                     <p className="text-xs text-slate-400">
-                      Resend OTP in <span className="font-semibold text-slate-600">{resendTimer}s</span>
+                      Resend OTP in{' '}
+                      <span className="font-semibold text-slate-600">{resendTimer}s</span>
                     </p>
                   ) : (
                     <button
@@ -253,13 +258,17 @@ export default function LoginPage() {
 
             <div className="flex items-center gap-2 mt-6 p-3 bg-slate-50 rounded-xl">
               <Shield className="w-4 h-4 text-brand-600 flex-shrink-0" />
-              <p className="text-xs text-slate-500">Your phone number is safe. We never share it without your consent.</p>
+              <p className="text-xs text-slate-500">
+                Your email is safe. We never share it without your consent.
+              </p>
             </div>
           </div>
 
           <p className="text-center text-xs text-slate-400 mt-6">
             Looking to list a property?{' '}
-            <Link href="/post-property" className="text-brand-600 font-medium hover:underline">Post for free</Link>
+            <Link href="/post-property" className="text-brand-600 font-medium hover:underline">
+              Post for free
+            </Link>
           </p>
         </div>
       </main>

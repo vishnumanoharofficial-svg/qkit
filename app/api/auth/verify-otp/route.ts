@@ -61,27 +61,56 @@ export async function POST(req: NextRequest) {
     }
 
     // OTP verified ✅ — find or create user in app_users
+    // The table stores email in the 'phone' column (legacy — used as identifier)
     let { data: user } = await supabase
       .from('app_users')
       .select('*')
-      .eq('phone', cleanEmail)
+      .or(`phone.eq.${cleanEmail},email.eq.${cleanEmail}`)
       .maybeSingle();
 
     if (!user) {
-      const { data: newUser, error: createErr } = await supabase
-        .from('app_users')
-        .insert({ phone: cleanEmail })
-        .select('*')
-        .single();
+      // Try inserting with email column first, fall back to phone column
+      const insertPayload: Record<string, string> = {};
+      try {
+        // Attempt with both columns
+        const { data: newUser, error: createErr } = await supabase
+          .from('app_users')
+          .insert({ email: cleanEmail, phone: cleanEmail })
+          .select('*')
+          .single();
 
-      if (createErr || !newUser) {
-        // app_users table may not exist — still log user in with email only
-        console.warn('[verify-otp] Could not create user in app_users:', createErr?.message);
-        // Fallback: use email as userId so login still works
-        const fallbackToken = createSessionToken({
-          userId: cleanEmail,
-          phone:  cleanEmail,
-        });
+        if (createErr || !newUser) {
+          // Try phone-only insert (older schema)
+          const { data: newUser2, error: err2 } = await supabase
+            .from('app_users')
+            .insert({ phone: cleanEmail })
+            .select('*')
+            .single();
+
+          if (err2 || !newUser2) {
+            console.warn('[verify-otp] Could not create user in app_users:', err2?.message);
+            // Fallback: still log the user in — session is valid without DB row
+            const fallbackToken = createSessionToken({
+              userId: cleanEmail,
+              phone:  cleanEmail,
+            });
+            const res = NextResponse.json({ success: true, isNew: true });
+            res.cookies.set(COOKIE_NAME, fallbackToken, {
+              httpOnly: true,
+              secure:   process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              maxAge:   COOKIE_MAX_AGE,
+              path:     '/',
+            });
+            return res;
+          }
+          user = newUser2;
+        } else {
+          user = newUser;
+        }
+      } catch (e) {
+        console.warn('[verify-otp] DB insert failed:', e);
+        const fallbackToken = createSessionToken({ userId: cleanEmail, phone: cleanEmail });
         const res = NextResponse.json({ success: true, isNew: true });
         res.cookies.set(COOKIE_NAME, fallbackToken, {
           httpOnly: true,
@@ -90,9 +119,8 @@ export async function POST(req: NextRequest) {
           maxAge:   COOKIE_MAX_AGE,
           path:     '/',
         });
-        res.cookies.set('otp_challenge', '', { maxAge: 0, path: '/' });
-        return res;      }
-      user = newUser;
+        return res;
+      }
     }
 
     // Issue session cookie

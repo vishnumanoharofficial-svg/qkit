@@ -16,13 +16,31 @@ export async function GET(_req: NextRequest) {
   const session = verifySessionToken(token);
   if (!session) return NextResponse.json({ user: null });
 
-  const { data: user } = await supabase
-    .from('app_users')
-    .select('id, phone, name, created_at')
-    .eq('id', session.userId)
-    .maybeSingle();
+  // Try DB lookup first
+  try {
+    const { data: user } = await supabase
+      .from('app_users')
+      .select('id, phone, name, avatar_url, created_at')
+      .eq('id', session.userId)
+      .maybeSingle();
 
-  return NextResponse.json({ user: user ?? null });
+    if (user) return NextResponse.json({ user });
+  } catch {
+    // DB unavailable — fall through to session fallback
+  }
+
+  // Fallback: return user data baked into the session token itself.
+  // This covers the case where app_users table doesn't exist yet
+  // or userId was stored as the email address (legacy fallback path).
+  return NextResponse.json({
+    user: {
+      id:         session.userId,
+      phone:      session.phone,
+      name:       session.name ?? null,
+      avatar_url: null,
+      created_at: new Date(session.iat * 1000).toISOString(),
+    },
+  });
 }
 
 /** POST /api/auth/logout — clears the session cookie */

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { generateListingId, slugify } from '@/lib/utils';
+import { cookies } from 'next/headers';
+import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/session';
 
 // GET /api/properties?status=published&category=apartments&limit=12&page=1
 export async function GET(request: NextRequest) {
@@ -58,41 +60,60 @@ export async function GET(request: NextRequest) {
 // POST /api/properties — create a new listing
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+    // ── Auth via custom qkit_session cookie ─────────────────────────────────
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
+    const session = token ? verifySessionToken(token) : null;
+    if (!session) {
+      return NextResponse.json({ error: 'Please log in to post a property.' }, { status: 401 });
+    }
 
+    const supabase = createClient();
     const body = await request.json();
     const {
-      title, description, transaction_type, category_id, subcategory_id,
+      title, description, transaction_type, category_slug,
+      taluk, town_panchayat, locality, pincode,
       price, price_unit, negotiable, area, area_unit,
-      locality_id, address_line, lat, lng, show_exact_location,
       seller_name, seller_phone, seller_type,
       attributes, media_urls,
     } = body;
 
     // Basic validation
-    if (!title || !transaction_type || !category_id || !price || !area || !seller_name || !seller_phone) {
+    if (!title || !transaction_type || !category_slug || !price || !area || !seller_name || !seller_phone) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const listing_id = generateListingId();
     const slug = `${slugify(title)}-${listing_id.toLowerCase()}`;
 
+    // Build address from Kottayam hierarchy
+    const address_parts = [locality, town_panchayat, taluk, 'Kottayam', 'Kerala'].filter(Boolean);
+    const address_line  = address_parts.join(', ');
+
     const { data: listing, error } = await supabase
       .from('property_listings')
       .insert({
-        user_id: user.id,
-        category_id, subcategory_id: subcategory_id || null,
-        title, slug, description,
-        transaction_type, price, price_unit: price_unit || 'total',
-        negotiable: negotiable ?? true,
-        area, area_unit: area_unit || 'sqft',
-        locality_id: locality_id || null,
-        address_line, lat, lng,
-        show_exact_location: show_exact_location ?? false,
-        seller_name, seller_phone, seller_type: seller_type || 'owner',
-        status: 'pending',   // requires moderation unless admin sets auto_publish
+        user_id:        session.userId,
+        category_slug,
+        title, slug, description: description || null,
+        transaction_type,
+        price: Number(price),
+        price_unit:     price_unit || (transaction_type === 'sale' ? 'total' : 'per_month'),
+        negotiable:     negotiable ?? true,
+        area:           Number(area),
+        area_unit:      area_unit || 'sqft',
+        // Kottayam location fields
+        taluk:          taluk || null,
+        town_panchayat: town_panchayat || null,
+        locality:       locality || null,
+        pincode:        pincode || null,
+        address_line,
+        state:          'Kerala',
+        district:       'Kottayam',
+        show_exact_location: false,
+        seller_name, seller_phone,
+        seller_type:    seller_type || 'owner',
+        status:         'pending',   // requires admin approval before going live
         listing_id,
         expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
       })
@@ -101,7 +122,7 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    // Insert dynamic attributes
+    // Insert dynamic attributes (bedrooms, bathrooms, etc.)
     if (attributes && Object.keys(attributes).length > 0) {
       const attrRows = Object.entries(attributes)
         .filter(([, v]) => v !== '' && v !== null && v !== undefined)
@@ -111,27 +132,22 @@ export async function POST(request: NextRequest) {
           field_value: String(field_value),
         }));
       if (attrRows.length > 0) {
-        await supabase.from('property_attributes').insert(attrRows);
+        await supabase.from('property_attributes').insert(attrRows).throwOnError();
       }
     }
 
-    // Insert media references
+    // Insert media references (uploaded image URLs)
     if (media_urls && Array.isArray(media_urls) && media_urls.length > 0) {
       const mediaRows = media_urls.map((url: string, i: number) => ({
         listing_id: listing.id, url, type: 'image', sort_order: i, is_primary: i === 0,
       }));
-      await supabase.from('property_media').insert(mediaRows);
+      await supabase.from('property_media').insert(mediaRows).throwOnError();
     }
 
-    // Audit log
-    await supabase.from('audit_logs').insert({
-      user_id: user.id, action: 'create_listing',
-      entity_type: 'property_listings', entity_id: listing.id,
-    });
-
     return NextResponse.json({ listing_id, slug, id: listing.id }, { status: 201 });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[POST /api/properties]', err);
-    return NextResponse.json({ error: 'Failed to create listing' }, { status: 500 });
+    const msg = err instanceof Error ? err.message : 'Failed to create listing';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

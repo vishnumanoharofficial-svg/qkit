@@ -123,9 +123,50 @@ export default function PostPropertyPage() {
     e.preventDefault();
     if (images.length === 0 && !confirm('Continue without photos? Listings with photos get 5x more enquiries.')) return;
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 2000));
-    setSubmitting(false);
-    setSubmitted(true);
+    try {
+      // Build attributes from dynamic fields
+      const attributes: Record<string, string> = {};
+      if (form.bedrooms)    attributes.bedrooms    = form.bedrooms;
+      if (form.bathrooms)   attributes.bathrooms   = form.bathrooms;
+      if (form.floor)       attributes.floor       = form.floor;
+      if (form.total_floors)attributes.total_floors = form.total_floors;
+      if (form.furnishing)  attributes.furnishing  = form.furnishing;
+      if (form.parking)     attributes.parking     = form.parking;
+
+      const res = await fetch('/api/properties', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title:            form.title,
+          description:      form.description,
+          transaction_type: form.transaction_type,
+          category_slug:    form.category_slug,
+          taluk:            form.taluk,
+          town_panchayat:   form.town_panchayat,
+          locality:         form.locality,
+          pincode:          form.pincode,
+          price:            Number(form.price),
+          price_unit:       form.transaction_type === 'sale' ? 'total' : 'per_month',
+          area:             Number(form.area),
+          area_unit:        form.area_unit,
+          seller_name:      form.seller_name,
+          seller_phone:     form.seller_phone,
+          seller_type:      form.seller_type,
+          negotiable:       true,
+          attributes,
+          media_urls:       [], // TODO: upload images to storage first
+        }),
+      });
+
+      const data = await res.json() as { error?: string; listing_id?: string };
+      if (!res.ok) throw new globalThis.Error(data.error ?? 'Submission failed');
+
+      setSubmitted(true);
+    } catch (err: unknown) {
+      alert(err instanceof globalThis.Error ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function removeImage(idx: number) {
@@ -212,7 +253,7 @@ export default function PostPropertyPage() {
                   <option value="">Select category…</option>
                   {PROPERTY_CATEGORIES.map(c => <option key={c.slug} value={c.slug}>{c.label}</option>)}
                 </select>
-                {errors.category_slug && <Error msg={errors.category_slug} />}
+                {errors.category_slug && <FieldError msg={errors.category_slug} />}
               </div>
 
               {/* Location — Kottayam District only */}
@@ -240,7 +281,7 @@ export default function PostPropertyPage() {
                       <option value="">Select Taluk…</option>
                       {TALUKS.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
-                    {errors.taluk && <Error msg={errors.taluk} />}
+                    {errors.taluk && <FieldError msg={errors.taluk} />}
                   </div>
 
                   {/* Town / Municipality / Panchayat */}
@@ -264,7 +305,7 @@ export default function PostPropertyPage() {
                         return all.map(p => <option key={p} value={p}>{p}</option>);
                       })()}
                     </select>
-                    {errors.town_panchayat && <Error msg={errors.town_panchayat} />}
+                    {errors.town_panchayat && <FieldError msg={errors.town_panchayat} />}
                   </div>
 
                   {/* Locality / Area (optional free-text) */}
@@ -304,7 +345,7 @@ export default function PostPropertyPage() {
                   <input className={cn('input', errors.price && 'border-red-400')}
                     type="number" placeholder="e.g. 5000000" inputMode="numeric"
                     value={form.price} onChange={e => setField('price', e.target.value)} />
-                  {errors.price && <Error msg={errors.price} />}
+                  {errors.price && <FieldError msg={errors.price} />}
                 </div>
               </div>
 
@@ -320,7 +361,7 @@ export default function PostPropertyPage() {
                     {AREA_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
                   </select>
                 </div>
-                {errors.area && <Error msg={errors.area} />}
+                {errors.area && <FieldError msg={errors.area} />}
               </div>
 
               {/* Dynamic fields */}
@@ -395,7 +436,7 @@ export default function PostPropertyPage() {
                     <input className={cn('input', errors.seller_name && 'border-red-400')}
                       placeholder="Full name" value={form.seller_name}
                       onChange={e => setField('seller_name', e.target.value)} />
-                    {errors.seller_name && <Error msg={errors.seller_name} />}
+                    {errors.seller_name && <FieldError msg={errors.seller_name} />}
                   </div>
                   <div className="col-span-2 sm:col-span-1">
                     <label className="label">Mobile Number *</label>
@@ -403,7 +444,7 @@ export default function PostPropertyPage() {
                       type="tel" inputMode="numeric" maxLength={10} placeholder="10-digit number"
                       value={form.seller_phone}
                       onChange={e => setField('seller_phone', e.target.value.replace(/\D/g,'').slice(0,10))} />
-                    {errors.seller_phone && <Error msg={errors.seller_phone} />}
+                    {errors.seller_phone && <FieldError msg={errors.seller_phone} />}
                   </div>
                   <div className="col-span-2">
                     <label className="label">I am a</label>
@@ -515,6 +556,6 @@ export default function PostPropertyPage() {
   );
 }
 
-function Error({ msg }: { msg: string }) {
+function FieldError({ msg }: { msg: string }) {
   return <p className="flex items-center gap-1 text-red-500 text-xs mt-1"><AlertCircle className="w-3 h-3" />{msg}</p>;
 }

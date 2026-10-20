@@ -11,7 +11,7 @@ import {
   X, Plus, Check, Loader2, AlertCircle, Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PROPERTY_CATEGORIES, TRANSACTION_TYPES, AREA_UNITS, INDIAN_STATES, SELLER_TYPES } from '@/lib/constants';
+import { PROPERTY_CATEGORIES, POST_TRANSACTION_TYPES, AREA_UNITS, INDIAN_STATES, SELLER_TYPES } from '@/lib/constants';
 
 type Step = 1 | 2;
 
@@ -183,7 +183,7 @@ export default function PostPropertyPage() {
               <div>
                 <label className="label">I want to *</label>
                 <div className="flex gap-3">
-                  {TRANSACTION_TYPES.map(t => (
+                  {POST_TRANSACTION_TYPES.map(t => (
                     <button key={t.value} type="button"
                       onClick={() => setField('transaction_type', t.value)}
                       className={cn('flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all',

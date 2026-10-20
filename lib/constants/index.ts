@@ -10,6 +10,13 @@ export const TRANSACTION_TYPES = [
   { value: 'lease', label: 'Lease', icon: 'FileText', color: 'purple' },
 ] as const;
 
+// For property owners posting their property (Sell instead of Buy)
+export const POST_TRANSACTION_TYPES = [
+  { value: 'sale',  label: 'Sell',  icon: 'Home',    color: 'brand' },
+  { value: 'rent',  label: 'Rent',  icon: 'Key',     color: 'blue' },
+  { value: 'lease', label: 'Lease', icon: 'FileText', color: 'purple' },
+] as const;
+
 export type TransactionType = 'sale' | 'rent' | 'lease' | 'auction';
 
 export const PROPERTY_CATEGORIES = [

@@ -90,24 +90,56 @@ export async function POST(request: NextRequest) {
     const address_parts = [locality, town_panchayat, taluk, 'Kottayam', 'Kerala'].filter(Boolean);
     const address_line  = address_parts.join(', ');
 
-    // Resolve user_id — must be a valid UUID for the NOT NULL constraint
-    let resolvedUserId: string = session.userId;
+    // Resolve user_id — must match a real Supabase auth.users UUID
+    let resolvedUserId: string | null = null;
     const isUuid = /^[0-9a-f-]{36}$/.test(session.userId);
-    if (!isUuid) {
-      // session.userId is an email (fallback auth) — look up the real UUID in app_users
-      const { data: appUser } = await supabase
-        .from('app_users')
-        .select('id')
-        .or(`email.eq.${session.userId},phone.eq.${session.userId}`)
-        .maybeSingle();
-      if (appUser?.id) {
-        resolvedUserId = appUser.id;
-      } else {
-        // Deterministic UUID from email using MD5 hash
-        const { createHash } = await import('crypto');
-        const hash = createHash('md5').update(session.userId).digest('hex');
-        resolvedUserId = `${hash.slice(0,8)}-${hash.slice(8,12)}-${hash.slice(12,16)}-${hash.slice(16,20)}-${hash.slice(20,32)}`;
+    if (isUuid) {
+      resolvedUserId = session.userId;
+    } else {
+      // session.userId is an email — find or create auth user via Supabase admin API
+      const email = session.userId;
+      try {
+        const searchRes = await fetch(
+          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`,
+          {
+            headers: {
+              'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+              'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
+            }
+          }
+        );
+        const searchData = await searchRes.json() as { users?: { id: string; email?: string }[] };
+        const existing = searchData.users?.find(u => u.email === email);
+        if (existing) {
+          resolvedUserId = existing.id;
+        } else {
+          // Create a new auth user for this email
+          const createRes = await fetch(
+            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+                'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                email,
+                email_confirm: true,
+                user_metadata: { name: session.name ?? email.split('@')[0] },
+              }),
+            }
+          );
+          const newUser = await createRes.json() as { id?: string };
+          resolvedUserId = newUser.id ?? null;
+        }
+      } catch (e) {
+        console.warn('[POST /api/properties] Auth user lookup/create failed:', e);
       }
+    }
+
+    if (!resolvedUserId) {
+      return NextResponse.json({ error: 'Could not resolve user account. Please log in again.' }, { status: 401 });
     }
 
     // Resolve category_id from category_slug (property_listings has category_id FK NOT NULL)

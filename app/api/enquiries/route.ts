@@ -1,25 +1,63 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
+import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/session';
+
+function getClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
+
+/** Resolve the current user from our custom session cookie */
+async function getSessionUser() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
+  if (!token) return null;
+  return verifySessionToken(token);
+}
 
 // GET /api/enquiries — seller fetches their enquiries
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-
+    const session = await getSessionUser();
+    const supabase = getClient();
     const { searchParams } = new URL(request.url);
-    const status     = searchParams.get('status');
-    const listing_id = searchParams.get('listing_id');
-    const page       = Math.max(Number(searchParams.get('page') ?? 1), 1);
-    const limit      = Math.min(Number(searchParams.get('limit') ?? 20), 50);
-    const offset     = (page - 1) * limit;
+
+    const sellerIdParam = searchParams.get('seller_id');
+    const countOnly     = searchParams.get('count') === 'true';
+    const status        = searchParams.get('status');
+    const listing_id    = searchParams.get('listing_id');
+    const page          = Math.max(Number(searchParams.get('page') ?? 1), 1);
+    const limit         = Math.min(Number(searchParams.get('limit') ?? 20), 50);
+    const offset        = (page - 1) * limit;
+
+    // Determine seller_id: prefer query param (from dashboard), else use session
+    const sellerId = sellerIdParam ?? session?.userId ?? null;
+
+    if (!sellerId) {
+      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+    }
+
+    if (countOnly) {
+      const { count, error } = await supabase
+        .from('enquiries')
+        .select('id', { count: 'exact', head: true })
+        .eq('seller_id', sellerId);
+      if (error) throw error;
+      return NextResponse.json({ count: count ?? 0 });
+    }
 
     let query = supabase
       .from('enquiries')
-      .select(`*, listing:property_listings(id,title,slug,listing_id)`, { count: 'exact' })
-      .eq('seller_id', user.id)
+      .select(
+        `*, listing:property_listings(id,title,slug,listing_id,price,price_unit,town_panchayat,address_line)`,
+        { count: 'exact' }
+      )
+      .eq('seller_id', sellerId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
@@ -29,7 +67,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
     if (error) throw error;
 
-    return NextResponse.json({ data, total: count ?? 0, page, per_page: limit });
+    return NextResponse.json({ data: data ?? [], total: count ?? 0, page, per_page: limit });
   } catch (err) {
     console.error('[GET /api/enquiries]', err);
     return NextResponse.json({ error: 'Failed to fetch enquiries' }, { status: 500 });
@@ -39,8 +77,8 @@ export async function GET(request: NextRequest) {
 // POST /api/enquiries — buyer sends an enquiry
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabase = getClient();
+    const session  = await getSessionUser();
 
     const { listing_id, message, buyer_name, buyer_phone, buyer_email } = await request.json();
 
@@ -62,12 +100,12 @@ export async function POST(request: NextRequest) {
       .from('enquiries')
       .insert({
         listing_id,
-        buyer_id:    user?.id ?? null,
+        buyer_id:    session?.userId ?? null,
         seller_id:   listing.user_id,
         message,
-        buyer_name:  buyer_name  || user?.user_metadata?.name || null,
+        buyer_name:  buyer_name  || session?.name || null,
         buyer_phone: buyer_phone || null,
-        buyer_email: buyer_email || user?.email || null,
+        buyer_email: buyer_email || session?.phone || null,
         status:      'new',
       })
       .select()

@@ -1,11 +1,18 @@
-import { createClient } from '@/lib/supabase/server';
-import { MOCK_LISTINGS, MOCK_STATS } from '@/lib/mock-data';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import type { PropertyListing } from '@/lib/types';
 
-const isSupabaseConfigured = () => {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  return url && !url.includes('your-project');
-};
+/**
+ * Queries lib — always uses service role key for reliable server-side access.
+ * No mock data fallbacks: if DB is unavailable, return empty arrays.
+ */
+
+function getClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+}
 
 // ─── Listings ─────────────────────────────────────────────────────────────────
 
@@ -15,63 +22,62 @@ export async function getListings(filters?: {
   limit?: number;
   offset?: number;
 }) {
-  if (!isSupabaseConfigured()) {
-    return { data: MOCK_LISTINGS, count: MOCK_LISTINGS.length, error: null };
-  }
   try {
-    const supabase = createClient();
-    let query = (supabase as any)
+    const supabase = getClient();
+    let query = supabase
       .from('property_listings')
-      .select('*, media:property_media(*), locality:localities(*, city:cities(*))', { count: 'exact' });
+      .select('*, media:property_media(url,is_primary)', { count: 'exact' });
 
-    if (filters?.status) query = query.eq('status', filters.status);
-    if (filters?.transaction_type) query = query.eq('transaction_type', filters.transaction_type);
-    if (filters?.limit) query = query.limit(filters.limit);
-    if (filters?.offset) query = query.range(filters.offset, (filters.offset + (filters.limit || 10)) - 1);
+    if (filters?.status)           query = (query as any).eq('status', filters.status);
+    if (filters?.transaction_type) query = (query as any).eq('transaction_type', filters.transaction_type);
 
-    query = query.order('created_at', { ascending: false });
-    const { data, error, count } = await query;
+    query = (query as any).order('created_at', { ascending: false });
+
+    if (filters?.offset !== undefined && filters?.limit) {
+      query = (query as any).range(filters.offset, filters.offset + filters.limit - 1);
+    } else if (filters?.limit) {
+      query = (query as any).limit(filters.limit);
+    }
+
+    const { data, error, count } = await (query as any);
     if (error) throw error;
-    return { data: data || [], count: count || 0, error: null };
+    return { data: data ?? [], count: count ?? 0, error: null };
   } catch (e) {
     console.error('getListings error:', e);
-    return { data: MOCK_LISTINGS, count: MOCK_LISTINGS.length, error: null };
+    return { data: [] as PropertyListing[], count: 0, error: e };
   }
 }
 
 export async function getListingBySlug(slug: string) {
-  if (!isSupabaseConfigured()) {
-    return MOCK_LISTINGS.find(l => l.slug === slug) || null;
-  }
   try {
-    const supabase = createClient();
-    const { data, error } = await (supabase as any)
+    const supabase = getClient();
+    const { data, error } = await supabase
       .from('property_listings')
-      .select('*, media:property_media(*), locality:localities(*, city:cities(*))')
+      .select('*, media:property_media(url,is_primary,sort_order)')
       .eq('slug', slug)
       .single();
     if (error) throw error;
     return data;
   } catch {
-    return MOCK_LISTINGS.find(l => l.slug === slug) || null;
+    return null;
   }
 }
 
 export async function createListing(listing: Partial<PropertyListing>) {
-  const supabase = createClient();
-  const { data, error } = await (supabase as any)
+  const supabase = getClient();
+  const { data, error } = await supabase
     .from('property_listings')
-    .insert([listing])
+    .insert([listing as any])
     .select()
     .single();
   return { data, error };
 }
 
-export async function updateListingStatus(id: string, status: string) {
-  const supabase = createClient();
-  const { data, error } = await (supabase as any)
+export async function updateListingStatus(id: string, status: string, extra?: Record<string, unknown>) {
+  const supabase = getClient();
+  const { data, error } = await supabase
     .from('property_listings')
-    .update({ status, updated_at: new Date().toISOString() })
+    .update({ status, updated_at: new Date().toISOString(), ...extra })
     .eq('id', id)
     .select()
     .single();
@@ -79,8 +85,8 @@ export async function updateListingStatus(id: string, status: string) {
 }
 
 export async function deleteListing(id: string) {
-  const supabase = createClient();
-  const { error } = await (supabase as any)
+  const supabase = getClient();
+  const { error } = await supabase
     .from('property_listings')
     .delete()
     .eq('id', id);
@@ -90,39 +96,46 @@ export async function deleteListing(id: string) {
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 export async function getDashboardStats() {
-  if (!isSupabaseConfigured()) return MOCK_STATS;
   try {
-    const supabase = createClient();
-    const [listings, pending, users, featured] = await Promise.all([
-      (supabase as any).from('property_listings').select('*', { count: 'exact', head: true }).eq('status', 'published'),
-      (supabase as any).from('property_listings').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      (supabase as any).from('profiles').select('*', { count: 'exact', head: true }),
-      (supabase as any).from('property_listings').select('*', { count: 'exact', head: true }).eq('is_featured', true),
+    const supabase = getClient();
+    const [published, pending, allListings, users, enquiries] = await Promise.all([
+      supabase.from('property_listings').select('id', { count: 'exact', head: true }).eq('status', 'published'),
+      supabase.from('property_listings').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('property_listings').select('id', { count: 'exact', head: true }),
+      supabase.from('app_users').select('id', { count: 'exact', head: true }),
+      supabase.from('enquiries').select('id', { count: 'exact', head: true }),
     ]);
     return {
-      total_listings: listings.count || 0,
-      pending_listings: pending.count || 0,
-      total_users: users.count || 0,
-      featured_listings: featured.count || 0,
+      total_listings:   (allListings.count  ?? 0),
+      published_listings: (published.count  ?? 0),
+      pending_listings: (pending.count      ?? 0),
+      total_users:      (users.count        ?? 0),
+      total_enquiries:  (enquiries.count    ?? 0),
+      // alias used by admin page
+      verified_listings: (published.count   ?? 0),
+      featured_listings: 0,
     };
-  } catch {
-    return MOCK_STATS;
+  } catch (e) {
+    console.error('getDashboardStats error:', e);
+    return {
+      total_listings: 0, published_listings: 0, pending_listings: 0,
+      total_users: 0, total_enquiries: 0, verified_listings: 0, featured_listings: 0,
+    };
   }
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function getUsers(limit = 50) {
-  if (!isSupabaseConfigured()) return { data: [], count: 0 };
   try {
-    const supabase = createClient();
-    const { data, error, count } = await (supabase as any)
-      .from('profiles')
+    const supabase = getClient();
+    const { data, error, count } = await supabase
+      .from('app_users')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
       .limit(limit);
     if (error) throw error;
-    return { data: data || [], count: count || 0 };
+    return { data: data ?? [], count: count ?? 0 };
   } catch {
     return { data: [], count: 0 };
   }

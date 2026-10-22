@@ -121,8 +121,8 @@ export async function POST(request: NextRequest) {
       seller_name: seller_name.trim(),
       seller_phone: seller_phone.trim(),
       seller_type: seller_type || 'owner',
-      // Use a system admin UUID for admin-created listings
-      user_id: '00000000-0000-0000-0000-000000000001',
+      // System admin UUID (admin@qkit.in — real Supabase auth user)
+      user_id: process.env.ADMIN_USER_ID ?? 'b96b3529-211f-4cd1-b2e3-c8d35dea410b',
       // category_id FK — use resolved UUID or null (requires nullable migration)
       ...(resolvedCategoryId ? { category_id: resolvedCategoryId } : {}),
       is_verified: true,

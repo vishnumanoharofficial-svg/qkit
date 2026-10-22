@@ -5,17 +5,18 @@ import { generateListingId, slugify } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/session';
 
-// GET /api/properties?status=published&category=apartments&limit=12&page=1
+// GET /api/properties?status=published&category=apartments&limit=12&page=1&user_id=<uuid>
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const status   = searchParams.get('status') ?? 'published';
-  const category = searchParams.get('category');
-  const type     = searchParams.get('type');
-  const limit    = Math.min(Number(searchParams.get('limit') ?? 12), 50);
-  const page     = Math.max(Number(searchParams.get('page') ?? 1), 1);
-  const offset   = (page - 1) * limit;
-  const featured = searchParams.get('featured');
-  const sort     = searchParams.get('sort') ?? 'newest';
+  const statusParam = searchParams.get('status');
+  const category    = searchParams.get('category');
+  const type        = searchParams.get('type');
+  const userIdParam = searchParams.get('user_id');
+  const limit       = Math.min(Number(searchParams.get('limit') ?? 12), 50);
+  const page        = Math.max(Number(searchParams.get('page') ?? 1), 1);
+  const offset      = (page - 1) * limit;
+  const featured    = searchParams.get('featured');
+  const sort        = searchParams.get('sort') ?? 'newest';
 
   try {
     const supabase = createClient(
@@ -24,13 +25,18 @@ export async function GET(request: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    // When filtering by user, show all their listings (any status)
+    // When no user filter, default to published
+    const status = statusParam ?? (userIdParam ? null : 'published');
+
     let query = supabase
       .from('property_listings')
-      .select('*', { count: 'exact' })
-      .eq('status', status);
+      .select('*, media:property_media(url,is_primary)', { count: 'exact' });
 
-    if (type)     query = query.eq('transaction_type', type);
-    if (featured) query = query.eq('is_featured', true);
+    if (status)     query = query.eq('status', status);
+    if (userIdParam) query = query.eq('user_id', userIdParam);
+    if (type)       query = query.eq('transaction_type', type);
+    if (featured)   query = query.eq('is_featured', true);
 
     switch (sort) {
       case 'price_asc':  query = query.order('price', { ascending: true });  break;
@@ -43,7 +49,7 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json({
-      data, total: count ?? 0, page, per_page: limit,
+      data: data ?? [], total: count ?? 0, page, per_page: limit,
       total_pages: Math.ceil((count ?? 0) / limit),
     });
   } catch (err) {

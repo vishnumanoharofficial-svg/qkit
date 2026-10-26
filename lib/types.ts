@@ -107,6 +107,7 @@ export interface PropertyListing {
   id: string;
   user_id: string;
   category_id: string;
+  category_slug?: string;
   subcategory_id?: string;
   title: string;
   slug: string;
@@ -120,6 +121,13 @@ export interface PropertyListing {
   area_unit: AreaUnit;
   locality_id?: string;
   address_line?: string;
+  // Kottayam District location fields
+  taluk?: string;
+  town_panchayat?: string;
+  city?: string;
+  district?: string;
+  state?: string;
+  pincode?: string;
   lat?: number;
   lng?: number;
   show_exact_location: boolean;

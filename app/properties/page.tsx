@@ -1,21 +1,20 @@
 'use client';
 
-import { useState, useMemo, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react';
+import { LayoutGrid, List, SlidersHorizontal, X, Loader2 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import PropertyCard from '@/components/property/PropertyCard';
 import PropertyCardSkeleton from '@/components/property/PropertyCardSkeleton';
 import { cn } from '@/lib/utils';
-import { MOCK_LISTINGS } from '@/lib/mock-data';
 import { PROPERTY_CATEGORIES, TRANSACTION_TYPES } from '@/lib/constants';
+import type { PropertyListing } from '@/lib/types';
 
 const SORT_OPTIONS = [
   { value: 'newest',     label: 'Newest First' },
   { value: 'price_asc',  label: 'Price: Low to High' },
   { value: 'price_desc', label: 'Price: High to Low' },
-  { value: 'area_asc',   label: 'Area: Small to Large' },
 ];
 
 export default function PropertiesPage() {
@@ -28,33 +27,47 @@ export default function PropertiesPage() {
 
 function PropertiesPageInner() {
   const searchParams = useSearchParams();
-  const [view, setView]           = useState<'grid'|'list'>('grid');
-  const [sort, setSort]           = useState('newest');
+  const [view, setView]             = useState<'grid'|'list'>('grid');
+  const [sort, setSort]             = useState('newest');
   const [filterOpen, setFilterOpen] = useState(false);
+  const [listings, setListings]     = useState<PropertyListing[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [total, setTotal]           = useState(0);
   const [filters, setFilters] = useState({
     transaction_type: searchParams.get('type') || '',
-    category: searchParams.get('category') || '',
-    min_price: '',
-    max_price: '',
-    seller_type: '',
-    verified: false,
-    featured: searchParams.get('featured') === 'true',
+    category:         searchParams.get('category') || '',
+    min_price:        '',
+    max_price:        '',
+    seller_type:      '',
+    verified:         false,
+    featured:         searchParams.get('featured') === 'true',
   });
 
-  const listings = useMemo(() => {
-    let list = [...MOCK_LISTINGS];
-    if (filters.transaction_type) list = list.filter(l => l.transaction_type === filters.transaction_type);
-    if (filters.category)         list = list.filter(l => l.category?.slug === filters.category);
-    if (filters.seller_type)      list = list.filter(l => l.seller_type === filters.seller_type);
-    if (filters.verified)         list = list.filter(l => l.is_verified);
-    if (filters.featured)         list = list.filter(l => l.is_featured);
-    if (filters.min_price)        list = list.filter(l => l.price >= Number(filters.min_price));
-    if (filters.max_price)        list = list.filter(l => l.price <= Number(filters.max_price));
+  // Fetch real listings from API
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set('status', 'published');
+    params.set('limit', '50');
+    params.set('sort', sort);
+    if (filters.transaction_type) params.set('type', filters.transaction_type);
+    if (filters.featured)         params.set('featured', 'true');
 
-    if (sort === 'newest')     list.sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    if (sort === 'price_asc')  list.sort((a,b) => a.price - b.price);
-    if (sort === 'price_desc') list.sort((a,b) => b.price - a.price);
-    return list;
+    fetch(`/api/properties?${params.toString()}`)
+      .then(r => r.json())
+      .then((json: { data?: PropertyListing[]; total?: number }) => {
+        let data = json.data ?? [];
+        // Client-side filter for fields not supported by API
+        if (filters.category)    data = data.filter(l => l.category?.slug === filters.category);
+        if (filters.seller_type) data = data.filter(l => l.seller_type === filters.seller_type);
+        if (filters.verified)    data = data.filter(l => l.is_verified);
+        if (filters.min_price)   data = data.filter(l => l.price >= Number(filters.min_price));
+        if (filters.max_price)   data = data.filter(l => l.price <= Number(filters.max_price));
+        setListings(data);
+        setTotal(json.total ?? data.length);
+      })
+      .catch(() => setListings([]))
+      .finally(() => setLoading(false));
   }, [filters, sort]);
 
   function clearFilters() {
@@ -69,12 +82,14 @@ function PropertiesPageInner() {
   return (
     <>
       <Header />
-      <main className="min-h-screen">
+      <main className="min-h-screen pt-16">
         {/* Page header */}
         <div className="bg-white border-b border-slate-100 py-6">
           <div className="container-qkit">
-            <h1 className="font-heading text-2xl font-bold text-slate-900">All Properties</h1>
-            <p className="text-slate-500 text-sm mt-1">{listings.length} properties found</p>
+            <h1 className="font-heading text-2xl font-bold text-slate-900">All Properties in Kottayam</h1>
+            <p className="text-slate-500 text-sm mt-1">
+              {loading ? 'Loading…' : `${listings.length} properties found`}
+            </p>
           </div>
         </div>
 
@@ -201,11 +216,19 @@ function PropertiesPageInner() {
               )}
 
               {/* Listings grid */}
-              {listings.length === 0 ? (
+              {loading ? (
+                <div className={cn(
+                  view === 'grid'
+                    ? 'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5'
+                    : 'flex flex-col gap-4'
+                )}>
+                  {Array.from({ length: 6 }).map((_, i) => <PropertyCardSkeleton key={i} />)}
+                </div>
+              ) : listings.length === 0 ? (
                 <div className="text-center py-24">
                   <div className="text-5xl mb-4">🔍</div>
                   <h3 className="font-heading font-semibold text-slate-700 mb-2">No properties found</h3>
-                  <p className="text-slate-500 text-sm mb-6">Try adjusting your filters or search in a different area.</p>
+                  <p className="text-slate-500 text-sm mb-6">Try adjusting your filters or check back later for new listings.</p>
                   <button onClick={clearFilters} className="btn-primary btn-md">Clear All Filters</button>
                 </div>
               ) : (
@@ -230,7 +253,6 @@ function PropertiesPageInner() {
                 <h2 className="font-heading font-bold text-slate-900">Filters</h2>
                 <button onClick={() => setFilterOpen(false)} className="p-2 rounded-xl hover:bg-slate-100"><X className="w-5 h-5" /></button>
               </div>
-              {/* same filters for mobile */}
               <div className="space-y-5">
                 <div>
                   <label className="label">Transaction Type</label>

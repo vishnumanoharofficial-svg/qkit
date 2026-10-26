@@ -18,12 +18,12 @@ const outfit = Outfit({
 
 export const metadata: Metadata = {
   title: {
-    default: 'qkit — Find Your Perfect Property in India',
-    template: '%s | qkit',
+    default: 'qkit — Real Estate in Kottayam District, Kerala',
+    template: '%s | qkit Real Estate',
   },
   description:
-    "India's premium real estate marketplace. Buy, sell, rent and lease residential, commercial, agricultural and industrial properties across India.",
-  keywords: ['real estate India', 'property for sale', 'property for rent', 'buy property India', 'qkit'],
+    "Kottayam District's trusted real estate marketplace. Buy, sell, rent and lease residential, commercial, agricultural and industrial properties in Kottayam, Kerala.",
+  keywords: ['real estate Kottayam', 'property for sale Kottayam', 'property for rent Kottayam', 'Kerala real estate', 'qkit', 'Changanassery', 'Pala', 'Ettumanoor'],
   authors: [{ name: 'qkit' }],
   creator: 'qkit',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
@@ -31,8 +31,8 @@ export const metadata: Metadata = {
     type: 'website',
     locale: 'en_IN',
     siteName: 'qkit',
-    title: 'qkit — Find Your Perfect Property in India',
-    description: "India's premium real estate marketplace.",
+    title: 'qkit — Real Estate in Kottayam District, Kerala',
+    description: "Kottayam's trusted real estate marketplace — buy, sell, rent & lease properties.",
   },
   robots: { index: true, follow: true },
 };
@@ -41,7 +41,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
-  themeColor: '#059669',
+  themeColor: '#2563eb',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

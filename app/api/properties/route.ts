@@ -5,18 +5,19 @@ import { generateListingId, slugify } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/session';
 
-// GET /api/properties?status=published&category=apartments&limit=12&page=1&user_id=<uuid>
+// GET /api/properties?status=published&category=apartments&limit=12&page=1&user_id=<uuid>&seller_phone=<email>
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const statusParam = searchParams.get('status');
-  const category    = searchParams.get('category');
-  const type        = searchParams.get('type');
-  const userIdParam = searchParams.get('user_id');
-  const limit       = Math.min(Number(searchParams.get('limit') ?? 12), 50);
-  const page        = Math.max(Number(searchParams.get('page') ?? 1), 1);
-  const offset      = (page - 1) * limit;
-  const featured    = searchParams.get('featured');
-  const sort        = searchParams.get('sort') ?? 'newest';
+  const statusParam    = searchParams.get('status');
+  const category       = searchParams.get('category');
+  const type           = searchParams.get('type');
+  const userIdParam    = searchParams.get('user_id');
+  const sellerPhone    = searchParams.get('seller_phone');
+  const limit          = Math.min(Number(searchParams.get('limit') ?? 12), 50);
+  const page           = Math.max(Number(searchParams.get('page') ?? 1), 1);
+  const offset         = (page - 1) * limit;
+  const featured       = searchParams.get('featured');
+  const sort           = searchParams.get('sort') ?? 'newest';
 
   try {
     const supabase = createClient(
@@ -25,18 +26,20 @@ export async function GET(request: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // When filtering by user, show all their listings (any status)
+    // When filtering by user/seller, show all their listings (any status)
     // When no user filter, default to published
-    const status = statusParam ?? (userIdParam ? null : 'published');
+    const isUserFilter = userIdParam || sellerPhone;
+    const status = statusParam ?? (isUserFilter ? null : 'published');
 
     let query = supabase
       .from('property_listings')
       .select('*, media:property_media(url,is_primary)', { count: 'exact' });
 
-    if (status)     query = query.eq('status', status);
+    if (status)      query = query.eq('status', status);
     if (userIdParam) query = query.eq('user_id', userIdParam);
-    if (type)       query = query.eq('transaction_type', type);
-    if (featured)   query = query.eq('is_featured', true);
+    if (sellerPhone) query = query.eq('seller_phone', sellerPhone);
+    if (type)        query = query.eq('transaction_type', type);
+    if (featured)    query = query.eq('is_featured', true);
 
     switch (sort) {
       case 'price_asc':  query = query.order('price', { ascending: true });  break;
@@ -96,59 +99,7 @@ export async function POST(request: NextRequest) {
     const address_parts = [locality, town_panchayat, taluk, 'Kottayam', 'Kerala'].filter(Boolean);
     const address_line  = address_parts.join(', ');
 
-    // Resolve user_id — must match a real Supabase auth.users UUID
-    let resolvedUserId: string | null = null;
-    const isUuid = /^[0-9a-f-]{36}$/.test(session.userId);
-    if (isUuid) {
-      resolvedUserId = session.userId;
-    } else {
-      // session.userId is an email — find or create auth user via Supabase admin API
-      const email = session.userId;
-      try {
-        const searchRes = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`,
-          {
-            headers: {
-              'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-              'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
-            }
-          }
-        );
-        const searchData = await searchRes.json() as { users?: { id: string; email?: string }[] };
-        const existing = searchData.users?.find(u => u.email === email);
-        if (existing) {
-          resolvedUserId = existing.id;
-        } else {
-          // Create a new auth user for this email
-          const createRes = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-                'apikey': process.env.SUPABASE_SERVICE_ROLE_KEY!,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                email,
-                email_confirm: true,
-                user_metadata: { name: session.name ?? email.split('@')[0] },
-              }),
-            }
-          );
-          const newUser = await createRes.json() as { id?: string };
-          resolvedUserId = newUser.id ?? null;
-        }
-      } catch (e) {
-        console.warn('[POST /api/properties] Auth user lookup/create failed:', e);
-      }
-    }
-
-    if (!resolvedUserId) {
-      return NextResponse.json({ error: 'Could not resolve user account. Please log in again.' }, { status: 401 });
-    }
-
-    // Resolve category_id from category_slug (property_listings has category_id FK NOT NULL)
+    // Resolve category_id from category_slug
     let resolvedCategoryId: string | null = null;
     if (category_slug) {
       const { data: catRow } = await supabase
@@ -159,10 +110,9 @@ export async function POST(request: NextRequest) {
       resolvedCategoryId = catRow?.id ?? null;
     }
 
-    // Build the insert payload using ONLY existing schema columns
-    // Kottayam-specific fields (taluk, town_panchayat, category_slug) are stored in address_line + attributes
+    // Build the insert payload — user_id is omitted (FK is nullable, owner identified via seller_phone)
     const insertPayload: Record<string, unknown> = {
-      user_id:          resolvedUserId,
+      // user_id intentionally omitted — avoids FK constraint against auth.users
       title,
       slug,
       description:      description || null,
@@ -185,35 +135,20 @@ export async function POST(request: NextRequest) {
       views_count:      0,
       enquiries_count:  0,
       expires_at:       new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      // Kottayam location columns (exist in DB schema)
+      category_slug:    category_slug || null,
+      city:             locality || town_panchayat || null,
+      state:            'Kerala',
+      district:         'Kottayam',
       // category_id FK — include if resolved
       ...(resolvedCategoryId ? { category_id: resolvedCategoryId } : {}),
     };
 
-    // Attempt insert — try with extended Kottayam columns first, fallback to base schema
-    let listing: Record<string, unknown> | null = null;
-    let insertError: { message: string; code?: string } | null = null;
-
-    // Try with category_slug column (if it exists from a previous migration)
-    const { data: d1, error: e1 } = await supabase
+    const { data: listing, error: insertError } = await supabase
       .from('property_listings')
-      .insert({ ...insertPayload, category_slug: category_slug || null })
+      .insert(insertPayload)
       .select()
       .single();
-
-    if (e1) {
-      // category_slug column doesn't exist — fall back to base schema
-      console.warn('[POST /api/properties] category_slug not found, using base schema:', e1.message);
-      const { data: d2, error: e2 } = await supabase
-        .from('property_listings')
-        .insert(insertPayload)
-        .select()
-        .single();
-
-      listing = d2 as Record<string, unknown>;
-      insertError = e2;
-    } else {
-      listing = d1 as Record<string, unknown>;
-    }
 
     if (insertError || !listing) {
       console.error('[POST /api/properties] Insert failed:', insertError);
@@ -223,22 +158,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert dynamic attributes (bedrooms, bathrooms, taluk, town_panchayat, category_slug)
+    // Insert dynamic attributes (bedrooms, bathrooms, taluk, town_panchayat, etc.)
     const allAttrs: Record<string, string> = {
       ...(attributes || {}),
-      // Store Kottayam location as attributes too for searchability
+      // Store Kottayam location as attributes for searchability
       ...(taluk         ? { taluk }          : {}),
       ...(town_panchayat? { town_panchayat } : {}),
       ...(locality      ? { locality }       : {}),
       ...(pincode       ? { pincode }        : {}),
       ...(category_slug ? { category_slug }  : {}),
+      // Store session identity for dashboard lookup
+      owner_email: session.phone, // session.phone stores the email
     };
 
     if (Object.keys(allAttrs).length > 0) {
       const attrRows = Object.entries(allAttrs)
         .filter(([, v]) => v !== '' && v != null)
         .map(([field_key, field_value]) => ({
-          listing_id: listing!.id,
+          listing_id: listing.id,
           field_key,
           field_value: String(field_value),
         }));
@@ -254,7 +191,7 @@ export async function POST(request: NextRequest) {
     // Insert media references
     if (media_urls && Array.isArray(media_urls) && media_urls.length > 0) {
       const mediaRows = media_urls.map((url: string, i: number) => ({
-        listing_id: listing!.id, url, type: 'image', sort_order: i, is_primary: i === 0,
+        listing_id: listing.id, url, type: 'image', sort_order: i, is_primary: i === 0,
       }));
       const { error: mediaErr } = await supabase
         .from('property_media')

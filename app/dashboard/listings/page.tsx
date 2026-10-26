@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { Plus, Edit2, Pause, CheckCircle, XCircle, Clock, Loader2, LogIn, Home } from 'lucide-react';
 import { formatIndianPrice, timeAgo } from '@/lib/utils';
 
-interface AuthUser { id: string; name?: string; }
+interface AuthUser { id: string; name?: string; phone?: string; }
 interface Listing {
   id: string; title: string; status: string;
   transaction_type: string; price: number; price_unit: string;
@@ -50,7 +50,8 @@ export default function MyListingsPage() {
     if (!user) return;
     setLoading(true);
     const statusParam = filter === 'All' ? '' : `&status=${filter.toLowerCase()}`;
-    fetch(`/api/properties?user_id=${user.id}&limit=50${statusParam}`)
+    const sellerPhone = encodeURIComponent(user.phone ?? user.id);
+    fetch(`/api/properties?seller_phone=${sellerPhone}&limit=50${statusParam}`)
       .then(r => r.json())
       .then(res => { setListings(res.data ?? []); setTotal(res.total ?? 0); })
       .catch(() => { setListings([]); setTotal(0); })

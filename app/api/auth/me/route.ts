@@ -16,13 +16,30 @@ export async function GET(_req: NextRequest) {
   const session = verifySessionToken(token);
   if (!session) return NextResponse.json({ user: null });
 
-  // Try DB lookup first
+  // Try DB lookup by id first, then by phone (email)
   try {
-    const { data: user } = await supabase
-      .from('app_users')
-      .select('id, phone, name, avatar_url, created_at')
-      .eq('id', session.userId)
-      .maybeSingle();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session.userId);
+
+    let user = null;
+
+    if (isUuid) {
+      const { data } = await supabase
+        .from('app_users')
+        .select('id, phone, name, avatar_url, created_at')
+        .eq('id', session.userId)
+        .maybeSingle();
+      user = data;
+    }
+
+    // Fallback: look up by phone (email stored in phone column)
+    if (!user) {
+      const { data } = await supabase
+        .from('app_users')
+        .select('id, phone, name, avatar_url, created_at')
+        .eq('phone', session.phone)
+        .maybeSingle();
+      user = data;
+    }
 
     if (user) return NextResponse.json({ user });
   } catch {
@@ -30,8 +47,6 @@ export async function GET(_req: NextRequest) {
   }
 
   // Fallback: return user data baked into the session token itself.
-  // This covers the case where app_users table doesn't exist yet
-  // or userId was stored as the email address (legacy fallback path).
   return NextResponse.json({
     user: {
       id:         session.userId,

@@ -43,8 +43,12 @@ export default function DashboardPage() {
     if (!user) return;
     setDataLoading(true);
 
+    // user.phone holds the email (our session stores email in 'phone' field)
+    // Properties are identified by seller_phone (= user email) since user_id FK is complex
+    const sellerPhone = encodeURIComponent(user.phone ?? user.id);
+
     Promise.all([
-      fetch(`/api/properties?user_id=${user.id}&limit=3`).then(r => r.json()).catch(() => ({ data: [], total: 0 })),
+      fetch(`/api/properties?seller_phone=${sellerPhone}&limit=3`).then(r => r.json()).catch(() => ({ data: [], total: 0 })),
       fetch(`/api/enquiries?seller_id=${user.id}&count=true`).then(r => r.json()).catch(() => ({ count: 0 })),
       fetch(`/api/favorites?user_id=${user.id}&count=true`).then(r => r.json()).catch(() => ({ count: 0 })),
     ]).then(([propsRes, enqRes, favRes]) => {

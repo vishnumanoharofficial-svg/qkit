@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
     const addrParts = [locality, city, state].filter(Boolean);
     const fullAddress = address_line?.trim() || addrParts.join(', ') || null;
 
-    // Insert the listing using ONLY verified existing schema columns
+    // Insert the listing — all Kottayam columns exist in DB schema
     const insertData: Record<string, unknown> = {
       title: title.trim(),
       slug,
@@ -121,10 +121,14 @@ export async function POST(request: NextRequest) {
       seller_name: seller_name.trim(),
       seller_phone: seller_phone.trim(),
       seller_type: seller_type || 'owner',
-      // System admin UUID (admin@qkit.in — real Supabase auth user)
-      user_id: process.env.ADMIN_USER_ID ?? 'b96b3529-211f-4cd1-b2e3-c8d35dea410b',
-      // category_id FK — use resolved UUID or null (requires nullable migration)
+      // user_id is omitted — FK points to auth.users and we don't use Supabase auth
+      // Properties are owner-identified via seller_phone
       ...(resolvedCategoryId ? { category_id: resolvedCategoryId } : {}),
+      category_slug: category_slug || null,
+      // Kottayam location columns (already in DB schema)
+      city: city || null,
+      state: state || 'Kerala',
+      district: 'Kottayam',
       is_verified: true,
       is_featured: false,
       is_promoted: false,
@@ -134,21 +138,25 @@ export async function POST(request: NextRequest) {
       expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
     };
 
-    // Try inserting with category_slug first, fallback to base schema if column missing
     let listing: Record<string, unknown> | null = null;
     let insertError: { message: string } | null = null;
 
     const { data: d1, error: e1 } = await supabase
       .from('property_listings')
-      .insert({ ...insertData, category_slug: category_slug || null })
+      .insert(insertData)
       .select()
       .single();
 
-    if (e1 && e1.message?.includes('category_slug')) {
-      // category_slug column doesn't exist yet — insert without it
+    if (e1) {
+      // Fallback: strip any unknown columns and retry with minimal payload
+      const minPayload: Record<string, unknown> = { ...insertData };
+      delete minPayload.category_slug;
+      delete minPayload.city;
+      delete minPayload.state;
+      delete minPayload.district;
       const { data: d2, error: e2 } = await supabase
         .from('property_listings')
-        .insert(insertData)
+        .insert(minPayload)
         .select()
         .single();
       listing = d2 as Record<string, unknown>;

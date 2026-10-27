@@ -135,11 +135,15 @@ export async function POST(request: NextRequest) {
       views_count:      0,
       enquiries_count:  0,
       expires_at:       new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-      // Kottayam location columns (exist in DB schema)
+      // Kottayam location columns
+      taluk:            taluk || null,
+      town_panchayat:   town_panchayat || null,
       category_slug:    category_slug || null,
       city:             locality || town_panchayat || null,
       state:            'Kerala',
       district:         'Kottayam',
+      // attributes JSONB — bedrooms, bathrooms, furnishing, etc.
+      attributes:       attributes && Object.keys(attributes).length > 0 ? attributes : null,
       // category_id FK — include if resolved
       ...(resolvedCategoryId ? { category_id: resolvedCategoryId } : {}),
     };

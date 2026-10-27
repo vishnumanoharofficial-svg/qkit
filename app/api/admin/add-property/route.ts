@@ -89,15 +89,18 @@ export async function POST(request: NextRequest) {
     const slug = generateSlug(title);
     const listing_id = generateListingId();
 
-    // Build attributes object
+    // Build attributes object — also auto-extract from title when fields not provided
     const attributes: Record<string, string> = {};
-    if (bedrooms)     attributes.bedrooms    = bedrooms;
-    if (bathrooms)    attributes.bathrooms   = bathrooms;
-    if (furnishing)   attributes.furnishing  = furnishing;
-    if (facing)       attributes.facing      = facing;
-    if (parking)      attributes.parking     = parking;
-    if (floor)        attributes.floor       = floor;
-    if (total_floors) attributes.total_floors = total_floors;
+    // Prefer explicit fields, fall back to title regex extraction
+    const bedroomsVal   = bedrooms   || (title.match(/(\d+)\s*BHK/i)?.[1] ?? '');
+    const bathroomsVal  = bathrooms  || (title.match(/(\d+)\s*Bath(?:room)?/i)?.[1] ?? '');
+    if (bedroomsVal)   attributes.bedrooms    = bedroomsVal;
+    if (bathroomsVal)  attributes.bathrooms   = bathroomsVal;
+    if (furnishing)    attributes.furnishing  = furnishing;
+    if (facing)        attributes.facing      = facing;
+    if (parking)       attributes.parking     = parking;
+    if (floor)         attributes.floor       = floor;
+    if (total_floors)  attributes.total_floors = total_floors;
 
     // Build full address from location fields
     const addrParts = [locality, city, state].filter(Boolean);
@@ -134,6 +137,7 @@ export async function POST(request: NextRequest) {
       is_promoted: false,
       views_count: 0,
       enquiries_count: 0,
+      attributes: Object.keys(attributes).length > 0 ? attributes : null,
       published_at: status === 'published' ? new Date().toISOString() : null,
       expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
     };

@@ -37,10 +37,20 @@ function extractBath(title: string, attrs?: Record<string, string | number | boo
   return m ? m[1] : '';
 }
 
-/** Pick the most specific local location to display */
+/** Pick the most specific local area to display (NOT city — that's too generic) */
 function getLocation(listing: PropertyListing & { city?: string; town_panchayat?: string; taluk?: string; address_line?: string }): string {
-  // Priority: town_panchayat → city → taluk → address_line fallback
-  return listing.town_panchayat || listing.city || listing.taluk || listing.address_line || 'Kottayam';
+  // 1. town_panchayat is the exact local area (e.g. "Ettumanoor", "Nagampadom")
+  if (listing.town_panchayat) return listing.town_panchayat;
+
+  // 2. address_line first segment often contains the locality
+  //    e.g. "Nagampadom, Kottayam, Kerala" → "Nagampadom"
+  if (listing.address_line) {
+    const first = listing.address_line.split(/[,\n]/)[0].trim();
+    if (first && first.toLowerCase() !== 'kottayam') return first;
+  }
+
+  // 3. taluk as last resort (skip city — it's usually just "Kottayam")
+  return listing.taluk || 'Kottayam';
 }
 
 export default function PropertyCard({

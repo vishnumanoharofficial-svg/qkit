@@ -13,9 +13,7 @@ interface PropertyCardProps {
   };
   className?: string;
   showActions?: boolean;
-  /** Optional: grid vs list view mode (used by listing/search pages) */
   view?: 'grid' | 'list';
-  /** Optional: pre-set saved/favorited state */
   isFavorited?: boolean;
 }
 
@@ -25,7 +23,29 @@ const TX_BADGE: Record<string, { label: string; cls: string }> = {
   lease: { label: 'For Lease', cls: 'bg-amber-500 text-white' },
 };
 
-export default function PropertyCard({ listing, className, showActions = true, view = 'grid', isFavorited = false }: PropertyCardProps) {
+/** Extract BHK count from title string e.g. "3 BHK House..." → "3" */
+function extractBHK(title: string, attrs?: Record<string, string | number | boolean>): string {
+  if (attrs?.bedrooms) return String(attrs.bedrooms);
+  const m = title.match(/(\d+)\s*BHK/i);
+  return m ? m[1] : '';
+}
+
+/** Extract bathroom count from title e.g. "2 BHK - 1 Bathroom" → "1" */
+function extractBath(title: string, attrs?: Record<string, string | number | boolean>): string {
+  if (attrs?.bathrooms) return String(attrs.bathrooms);
+  const m = title.match(/(\d+)\s*Bath(?:room)?/i);
+  return m ? m[1] : '';
+}
+
+/** Pick the most specific local location to display */
+function getLocation(listing: PropertyListing & { city?: string; town_panchayat?: string; taluk?: string; address_line?: string }): string {
+  // Priority: town_panchayat → city → taluk → address_line fallback
+  return listing.town_panchayat || listing.city || listing.taluk || listing.address_line || 'Kottayam';
+}
+
+export default function PropertyCard({
+  listing, className, showActions = true, view = 'grid', isFavorited = false,
+}: PropertyCardProps) {
   const [saved, setSaved]       = useState(isFavorited);
   const [imgError, setImgError] = useState(false);
 
@@ -34,15 +54,10 @@ export default function PropertyCard({ listing, className, showActions = true, v
   const imgUrl   = images[0]?.url ?? null;
   const imgCount = images.length;
 
-  const attrs      = (listing.attributes ?? {}) as Record<string, string | number | boolean>;
-  const bedrooms   = attrs.bedrooms  as string | undefined;
-  const bathrooms  = attrs.bathrooms as string | undefined;
-
-  const locationText = [
-    listing.town_panchayat,
-    listing.taluk,
-    listing.address_line,
-  ].filter(Boolean).join(', ') || 'Kottayam District, Kerala';
+  const attrs     = listing.attributes as Record<string, string | number | boolean> | undefined;
+  const bedrooms  = extractBHK(listing.title, attrs);
+  const bathrooms = extractBath(listing.title, attrs);
+  const location  = getLocation(listing as PropertyListing & { city?: string; town_panchayat?: string; taluk?: string; address_line?: string });
 
   const whatsappMsg = `Hi, I'm interested in your property: ${listing.title} (${listing.listing_id}). Please share more details.`;
   const whatsappUrl = buildWhatsAppUrl(listing.seller_phone, whatsappMsg);
@@ -66,8 +81,8 @@ export default function PropertyCard({ listing, className, showActions = true, v
       'hover:shadow-card-hover transition-all duration-300 hover:-translate-y-0.5 flex flex-col',
       className
     )}>
-      {/* Image */}
-      <div className="relative h-52 bg-slate-100 overflow-hidden flex-shrink-0">
+      {/* ── Image ── */}
+      <div className="relative h-48 bg-slate-100 overflow-hidden flex-shrink-0">
         {imgUrl && !imgError ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -107,71 +122,78 @@ export default function PropertyCard({ listing, className, showActions = true, v
         )}
       </div>
 
-      {/* Body */}
+      {/* ── Body ── */}
       <div className="p-4 flex flex-col flex-1">
+
         {/* Title */}
-        <h3 className="font-heading font-semibold text-slate-900 text-sm leading-snug line-clamp-2 mb-1.5">
+        <h3 className="font-heading font-semibold text-slate-900 text-sm leading-snug line-clamp-2 mb-2">
           {listing.title}
         </h3>
 
-        {/* Location */}
-        <div className="flex items-start gap-1 text-slate-500 text-xs mb-2">
-          <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-px text-brand-400" />
-          <span className="line-clamp-1">{locationText}</span>
+        {/* ── Location ── always visible */}
+        <div className="flex items-center gap-1 text-slate-500 text-xs mb-2.5">
+          <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-brand-500" />
+          <span className="line-clamp-1 font-medium">{location}</span>
         </div>
 
-        {/* Price */}
-        <p className="font-heading font-bold text-brand-600 text-xl mb-3">
+        {/* ── Price ── */}
+        <p className="font-heading font-bold text-brand-600 text-lg mb-3">
           {formatIndianPrice(listing.price, listing.price_unit as 'total' | 'per_month' | 'per_sqft' | 'per_year')}
         </p>
 
-        {/* Specs */}
-        <div className="flex items-center gap-3 text-xs text-slate-500 mb-4 flex-wrap">
-          {bedrooms && (
-            <span className="flex items-center gap-1">
-              <BedDouble className="w-3.5 h-3.5 text-slate-400" /> {bedrooms} BHK
+        {/* ── Specs row: BHK · Baths · Sqft — always shown, dash if missing ── */}
+        <div className="flex items-center gap-0 mb-4 bg-slate-50 rounded-xl px-3 py-2">
+          {/* BHK */}
+          <div className="flex-1 flex flex-col items-center gap-0.5 border-r border-slate-200">
+            <BedDouble className="w-3.5 h-3.5 text-brand-500" />
+            <span className="text-xs font-semibold text-slate-800">
+              {bedrooms ? `${bedrooms} BHK` : '—'}
             </span>
-          )}
-          {listing.area > 0 && (
-            <span className="flex items-center gap-1">
-              <Move className="w-3.5 h-3.5 text-slate-400" /> {formatArea(listing.area, listing.area_unit)}
+          </div>
+          {/* Baths */}
+          <div className="flex-1 flex flex-col items-center gap-0.5 border-r border-slate-200">
+            <Bath className="w-3.5 h-3.5 text-brand-500" />
+            <span className="text-xs font-semibold text-slate-800">
+              {bathrooms ? `${bathrooms} Bath` : '—'}
             </span>
-          )}
-          {bathrooms && (
-            <span className="flex items-center gap-1">
-              <Bath className="w-3.5 h-3.5 text-slate-400" /> {bathrooms} Bath
+          </div>
+          {/* Area */}
+          <div className="flex-1 flex flex-col items-center gap-0.5">
+            <Move className="w-3.5 h-3.5 text-brand-500" />
+            <span className="text-xs font-semibold text-slate-800">
+              {listing.area > 0 ? formatArea(listing.area, listing.area_unit) : '—'}
             </span>
-          )}
+          </div>
         </div>
 
         <div className="flex-1" />
 
-        {/* Call / WhatsApp buttons */}
+        {/* ── Call / WhatsApp buttons ── */}
         {showActions && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-2">
             <a
               href={`tel:${listing.seller_phone}`}
               onClick={e => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-medium hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-all"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-all"
             >
-              <Phone className="w-4 h-4" /> Call
+              <Phone className="w-3.5 h-3.5" /> Call
             </a>
             <a
               href={whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-green-500 hover:bg-green-600 text-white text-sm font-medium transition-colors"
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-green-500 hover:bg-green-600 text-white text-xs font-semibold transition-colors"
             >
-              <MessageCircle className="w-4 h-4" /> WhatsApp
+              <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
             </a>
           </div>
         )}
 
-        {/* View Details */}
+        {/* ── View Details ── */}
         <Link
           href={`/property/${listing.slug}`}
-          className="mt-2 text-center text-xs text-brand-600 hover:text-brand-700 font-medium hover:underline transition-colors"
+          className="text-center text-xs text-brand-600 hover:text-brand-700 font-semibold hover:underline transition-colors py-1"
         >
           View Details →
         </Link>

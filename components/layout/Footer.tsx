@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Home, Mail, Phone, MapPin } from 'lucide-react';
+import Image from 'next/image';
+import { Mail, Phone, MapPin } from 'lucide-react';
 
 const FOOTER_LINKS = {
   'Buy Property': [
@@ -53,16 +54,14 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-8">
           {/* Brand column */}
           <div className="col-span-2 md:col-span-3 lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2 mb-4 group">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Home className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <span className="font-heading font-bold text-xl text-white">
-                  q<span className="text-blue-400">KIT</span>
-                </span>
-                <div className="text-[9px] text-slate-500 -mt-0.5 font-medium tracking-wider uppercase">Real Estate</div>
-              </div>
+            <Link href="/" className="flex items-center mb-4">
+              <Image
+                src="/logo.png"
+                alt="qKIT Real Estate"
+                width={110}
+                height={36}
+                className="h-8 w-auto object-contain brightness-0 invert"
+              />
             </Link>
             <p className="text-sm text-slate-400 leading-relaxed mb-4">
               Kottayam District's trusted real estate marketplace. Connecting property owners, buyers and tenants directly — no brokers.

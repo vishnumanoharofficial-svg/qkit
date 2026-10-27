@@ -7,6 +7,7 @@ import {
   Menu, X, Heart, User, Plus, LogOut, LayoutDashboard,
   Home, List, MessageCircle, ChevronDown,
 } from 'lucide-react';
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
@@ -84,11 +85,15 @@ export default function Header() {
           <div className="flex items-center h-16 gap-4">
 
             {/* Logo */}
-            <Link href="/" className="flex items-center gap-1.5 flex-shrink-0 group">
-              <span className="font-heading font-extrabold text-2xl tracking-tight">
-                <span className="text-brand-600">q</span><span className="text-slate-900">KIT</span>
-              </span>
-              <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest hidden sm:block -mb-0.5">REAL ESTATE</span>
+            <Link href="/" className="flex items-center flex-shrink-0 group">
+              <Image
+                src="/logo.png"
+                alt="qKIT Real Estate"
+                width={120}
+                height={40}
+                className="h-9 w-auto object-contain"
+                priority
+              />
             </Link>
 
             {/* Desktop Nav */}

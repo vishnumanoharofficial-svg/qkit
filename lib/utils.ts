@@ -6,7 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Format a price in Indian number system with lakh/crore notation
+ * Format a price in Indian number system.
+ * - Crore / Lakh range: abbreviated (e.g. ₹4.5 Cr, ₹12 L) — standard for Indian property prices
+ * - Below 1 Lakh: full figure with Indian comma grouping (e.g. ₹12,000) — clear for rents & smaller amounts
  */
 export function formatIndianPrice(amount: number, unit: 'total' | 'per_sqft' | 'per_month' | 'per_year' = 'total'): string {
   if (!amount || isNaN(amount)) return 'Price on request';
@@ -22,12 +24,9 @@ export function formatIndianPrice(amount: number, unit: 'total' | 'per_sqft' | '
     const lakh = amount / 100_000;
     formatted = lakh % 1 === 0 ? lakh.toString() : lakh.toFixed(2).replace(/\.?0+$/, '');
     suffix = ' L';
-  } else if (amount >= 1_000) {
-    const thou = amount / 1_000;
-    formatted = thou % 1 === 0 ? thou.toString() : thou.toFixed(1).replace(/\.?0+$/, '');
-    suffix = 'K';
   } else {
-    formatted = amount.toString();
+    // Show full figure with Indian comma formatting (e.g. 12,000 / 7,500)
+    formatted = amount.toLocaleString('en-IN');
   }
 
   const unitLabel = unit === 'per_sqft' ? '/sqft' : unit === 'per_month' ? '/mo' : unit === 'per_year' ? '/yr' : '';

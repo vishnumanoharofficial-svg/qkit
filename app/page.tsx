@@ -88,11 +88,11 @@ function HeroSearch() {
 
   return (
     <div className="w-full max-w-3xl">
-      {/* Search Card */}
-      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+      {/* Search Card — outer div has NO overflow-hidden so dropdowns can escape */}
+      <div className="bg-white rounded-2xl shadow-2xl">
         <div className="flex flex-col sm:flex-row items-stretch">
           {/* Location */}
-          <div className="flex items-center gap-2 px-4 py-3.5 border-b sm:border-b-0 sm:border-r border-slate-100 flex-shrink-0 sm:min-w-[140px]">
+          <div className="flex items-center gap-2 px-4 py-3.5 border-b sm:border-b-0 sm:border-r border-slate-100 flex-shrink-0 sm:min-w-[140px] rounded-tl-2xl sm:rounded-bl-2xl">
             <MapPin className="w-4 h-4 text-brand-600 flex-shrink-0" />
             <div>
               <p className="text-xs text-slate-400 font-medium">Location</p>
@@ -114,14 +114,14 @@ function HeroSearch() {
               <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform flex-shrink-0', typeOpen && 'rotate-180')} />
             </button>
             {typeOpen && (
-              <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-2xl shadow-modal border border-slate-100 p-2 z-50 animate-slide-down">
+              <div className="absolute top-full left-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[200] animate-slide-down">
                 <button onClick={() => { setPropType('Any Type'); setSelectedCategory(null); setTypeOpen(false); }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-sm text-slate-600 hover:bg-brand-50 hover:text-brand-700 transition-colors mb-1">
+                  className="w-full text-left px-3 py-2.5 rounded-xl text-sm text-slate-600 hover:bg-brand-50 hover:text-brand-700 transition-colors mb-1">
                   Any Type
                 </button>
                 {PROPERTY_TYPES.map(pt => (
                   <button key={pt.label} onClick={() => { setPropType(pt.label); setSelectedCategory(pt); setTypeOpen(false); }}
-                    className={cn('w-full text-left px-3 py-2 rounded-xl text-sm transition-colors',
+                    className={cn('w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors',
                       propType === pt.label ? 'bg-brand-50 text-brand-700 font-medium' : 'text-slate-600 hover:bg-slate-50')}>
                     {pt.label}
                   </button>
@@ -144,10 +144,10 @@ function HeroSearch() {
               <ChevronDown className={cn('w-4 h-4 text-slate-400 transition-transform flex-shrink-0', budgetOpen && 'rotate-180')} />
             </button>
             {budgetOpen && (
-              <div className="absolute top-full left-0 mt-1 w-52 bg-white rounded-2xl shadow-modal border border-slate-100 p-2 z-50 animate-slide-down">
+              <div className="absolute top-full left-0 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 p-2 z-[200] animate-slide-down">
                 {BUDGET_OPTIONS.map(opt => (
                   <button key={opt.label} onClick={() => { setBudget(opt.label); setBudgetOpen(false); }}
-                    className={cn('w-full text-left px-3 py-2 rounded-xl text-sm transition-colors',
+                    className={cn('w-full text-left px-3 py-2.5 rounded-xl text-sm transition-colors',
                       budget === opt.label ? 'bg-brand-50 text-brand-700 font-medium' : 'text-slate-600 hover:bg-slate-50')}>
                     {opt.label}
                   </button>
@@ -159,7 +159,7 @@ function HeroSearch() {
           {/* Search Button */}
           <button
             onClick={handleSearch}
-            className="flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm px-6 py-3.5 transition-colors flex-shrink-0"
+            className="flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 active:bg-brand-800 text-white font-semibold text-sm px-6 py-3.5 transition-colors flex-shrink-0 rounded-b-2xl sm:rounded-b-none sm:rounded-r-2xl"
           >
             <Search className="w-4 h-4" />
             <span>Search Properties</span>

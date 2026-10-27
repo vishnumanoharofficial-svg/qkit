@@ -46,8 +46,7 @@ export async function PATCH(
     const {
       title, description, transaction_type, category_slug,
       price, price_unit, negotiable, area, area_unit,
-      taluk, town_panchayat, city, locality, address_line,
-      seller_name, seller_phone, seller_type,
+      taluk, town_panchayat, city, locality, address_line,      seller_name, seller_phone, seller_type,
       bedrooms, bathrooms, floor, total_floors,
       furnishing, parking, facing, age,
       status, is_featured, is_verified,
@@ -94,8 +93,12 @@ export async function PATCH(
     if (taluk          !== undefined) patch.taluk           = taluk || null;
     if (town_panchayat !== undefined) patch.town_panchayat  = town_panchayat || null;
     if (city           !== undefined) patch.city            = city || null;
-    if (locality       !== undefined) patch.locality        = locality || null;
-    if (address_line   !== undefined) patch.address_line    = address_line || null;
+    // 'locality' is NOT a DB column — fold it into address_line instead
+    if (address_line   !== undefined || locality !== undefined) {
+      // Build address: locality + existing or provided address_line
+      const parts = [locality, address_line].filter(Boolean);
+      patch.address_line = parts.join(', ') || null;
+    }
     if (seller_name    !== undefined) patch.seller_name     = seller_name;
     if (seller_phone   !== undefined) patch.seller_phone    = seller_phone;
     if (seller_type    !== undefined) patch.seller_type     = seller_type;

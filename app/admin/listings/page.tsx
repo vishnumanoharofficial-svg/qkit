@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus, Pencil } from 'lucide-react';
 import { getListings } from '@/lib/supabase/queries';
 import { formatIndianPrice, timeAgo } from '@/lib/utils';
 
@@ -133,8 +133,12 @@ export default async function AdminListingsPage() {
                         </td>
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
+                            <Link href={`/admin/listings/${l.id}/edit`}
+                              className="flex items-center gap-1 text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                              <Pencil className="w-3 h-3" />Edit
+                            </Link>
                             <Link href={`/property/${l.slug}`} target="_blank"
-                              className="text-xs text-brand-600 hover:underline whitespace-nowrap">
+                              className="text-xs text-slate-500 hover:text-brand-600 hover:underline whitespace-nowrap">
                               View
                             </Link>
                           </div>

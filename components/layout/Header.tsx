@@ -22,9 +22,16 @@ const NAV_LINKS = [
 
 interface AuthUser { id: string; name?: string; phone?: string; avatar_url?: string; }
 
-function getInitials(name?: string): string {
-  if (!name?.trim()) return '?';
-  return name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+/** Returns up to 2 initials from name, or first letter of email, or '?' */
+function getInitials(name?: string, email?: string): string {
+  if (name?.trim()) {
+    return name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  }
+  // Fall back to first character of email (everything before @)
+  if (email?.trim()) {
+    return email.trim()[0].toUpperCase();
+  }
+  return '?';
 }
 
 export default function Header() {
@@ -136,11 +143,11 @@ export default function Header() {
                       <img src={user.avatar_url} alt={user.name ?? 'Profile'} className="w-8 h-8 rounded-full object-cover ring-2 ring-brand-200" />
                     ) : (
                       <div className="w-8 h-8 rounded-full bg-brand-600 text-white flex items-center justify-center text-xs font-bold ring-2 ring-brand-200">
-                        {getInitials(user.name)}
+                        {getInitials(user.name, user.phone)}
                       </div>
                     )}
                     <span className="hidden sm:block text-sm font-medium text-slate-700 max-w-[80px] truncate">
-                      {user.name?.split(' ')[0] ?? 'Me'}
+                      {user.name?.split(' ')[0] ?? user.phone?.split('@')[0] ?? 'Me'}
                     </span>
                     <ChevronDown className={cn('w-3.5 h-3.5 text-slate-400 transition-transform hidden sm:block', profileOpen && 'rotate-180')} />
                   </button>
@@ -148,7 +155,7 @@ export default function Header() {
                   {profileOpen && (
                     <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-modal border border-slate-100 p-2 z-50 animate-slide-down">
                       <div className="px-3 py-2 mb-1 border-b border-slate-100">
-                        <p className="font-semibold text-slate-900 text-sm truncate">{user.name ?? 'User'}</p>
+                        <p className="font-semibold text-slate-900 text-sm truncate">{user.name ?? user.phone?.split('@')[0] ?? 'User'}</p>
                         <p className="text-xs text-slate-400 truncate">{user.phone ?? ''}</p>
                       </div>
                       {[
@@ -202,7 +209,7 @@ export default function Header() {
             {user && (
               <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-brand-50">
                 <div className="w-10 h-10 rounded-full bg-brand-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
-                  {getInitials(user.name)}
+                  {getInitials(user.name, user.phone)}
                 </div>
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-900 text-sm truncate">{user.name ?? 'User'}</p>

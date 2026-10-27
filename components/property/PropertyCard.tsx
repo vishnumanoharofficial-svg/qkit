@@ -38,7 +38,11 @@ export default function PropertyCard({ listing, className, showActions = true, v
   const bedrooms   = attrs.bedrooms  as string | undefined;
   const bathrooms  = attrs.bathrooms as string | undefined;
 
-  const locationText = listing.address_line ?? '';
+  const locationText = [
+    listing.town_panchayat,
+    listing.taluk,
+    listing.address_line,
+  ].filter(Boolean).join(', ') || 'Kottayam District, Kerala';
 
   const whatsappMsg = `Hi, I'm interested in your property: ${listing.title} (${listing.listing_id}). Please share more details.`;
   const whatsappUrl = buildWhatsAppUrl(listing.seller_phone, whatsappMsg);
@@ -111,12 +115,10 @@ export default function PropertyCard({ listing, className, showActions = true, v
         </h3>
 
         {/* Location */}
-        {locationText && (
-          <div className="flex items-start gap-1 text-slate-500 text-xs mb-2">
-            <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-px text-brand-400" />
-            <span className="line-clamp-1">{locationText}</span>
-          </div>
-        )}
+        <div className="flex items-start gap-1 text-slate-500 text-xs mb-2">
+          <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-px text-brand-400" />
+          <span className="line-clamp-1">{locationText}</span>
+        </div>
 
         {/* Price */}
         <p className="font-heading font-bold text-brand-600 text-xl mb-3">

@@ -1,97 +1,118 @@
-import { notFound } from 'next/navigation';
-import type { Metadata } from 'next';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
-import { createClient } from '@supabase/supabase-js';
 import {
   MapPin, CheckCircle, Phone, MessageCircle, Share2,
-  Flag, Calendar, Eye,
+  Flag, Calendar, Eye, Loader2,
 } from 'lucide-react';
 import { formatIndianPrice, formatArea, timeAgo, buildWhatsAppUrl, formatPhoneDisplay, maskPhone } from '@/lib/utils';
 import type { PropertyListing } from '@/lib/types';
 
-interface Props {
-  params: { slug: string };
-}
-
-async function getListing(slug: string): Promise<PropertyListing | null> {
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-    const { data, error } = await supabase
-      .from('property_listings')
-      .select('*, media:property_media(url,is_primary,type,sort_order)')
-      .eq('slug', slug)
-      .single();
-    if (error || !data) return null;
-    return data as PropertyListing;
-  } catch {
-    return null;
-  }
-}
-
-async function getSimilar(listing: PropertyListing): Promise<PropertyListing[]> {
-  try {
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
-    const { data } = await supabase
-      .from('property_listings')
-      .select('*, media:property_media(url,is_primary)')
-      .eq('status', 'published')
-      .eq('transaction_type', listing.transaction_type)
-      .neq('id', listing.id)
-      .limit(4);
-    return (data ?? []) as PropertyListing[];
-  } catch {
-    return [];
-  }
-}
-
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const listing = await getListing(params.slug);
-  if (!listing) return { title: 'Property Not Found | qkit Real Estate' };
-  const location = [listing.taluk, 'Kottayam'].filter(Boolean).join(', ');
-  return {
-    title: `${listing.title} | qkit Real Estate`,
-    description: listing.description?.slice(0, 160) ?? `${listing.title} — ${location}`,
-    openGraph: {
-      title: listing.title,
-      description: listing.description?.slice(0, 160),
-      images: listing.media?.[0]?.url ? [listing.media[0].url] : [],
-    },
+type PageData = {
+  listing: PropertyListing & {
+    media?: { url: string; is_primary?: boolean; type?: string; sort_order?: number }[];
+    attributes?: Record<string, string | number | boolean>;
+    taluk?: string;
+    town_panchayat?: string;
+    city?: string;
+    category_slug?: string;
   };
+  similar: PropertyListing[];
+};
+
+const TX_LABELS: Record<string, string> = {
+  sale: 'For Sale', rent: 'For Rent', lease: 'For Lease', auction: 'Auction',
+};
+
+function Detail({ label, value }: { label: string; value?: string }) {
+  if (!value) return null;
+  return (
+    <div>
+      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+      <p className="text-sm font-semibold text-slate-800 capitalize">{value}</p>
+    </div>
+  );
 }
 
-export default async function PropertyDetailPage({ params }: Props) {
-  const listing = await getListing(params.slug);
-  if (!listing) notFound();
+export default function PropertyDetailPage() {
+  const params = useParams();
+  const slug = params?.slug as string;
 
-  const similar       = await getSimilar(listing);
-  const images        = listing.media?.filter((m: { url: string; type?: string }) => m.url) ?? [];
+  const [data, setData]       = useState<PageData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!slug) return;
+    setLoading(true);
+    fetch(`/api/property/${encodeURIComponent(slug)}`)
+      .then(r => {
+        if (r.status === 404) { setNotFound(true); return null; }
+        return r.json();
+      })
+      .then(json => {
+        if (json?.listing) setData(json as PageData);
+        else if (json) setNotFound(true);
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  // ── Loading ──────────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <main className="min-h-screen pt-16 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-10 h-10 animate-spin text-brand-600 mx-auto mb-3" />
+            <p className="text-slate-500">Loading property details…</p>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  // ── Not found ─────────────────────────────────────────────────────────────
+  if (notFound || !data) {
+    return (
+      <>
+        <Header />
+        <main className="min-h-screen pt-16 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-6xl mb-4">🏠</div>
+            <h1 className="font-heading text-2xl font-bold text-slate-900 mb-2">Property Not Found</h1>
+            <p className="text-slate-500 mb-6">This listing may have been removed or the link is incorrect.</p>
+            <Link href="/properties" className="btn-primary btn-lg inline-flex">Browse All Properties</Link>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  const { listing, similar } = data;
+  const images        = listing.media?.filter(m => m.url) ?? [];
   const priceDisplay  = formatIndianPrice(listing.price, listing.price_unit);
   const areaDisplay   = formatArea(listing.area, listing.area_unit);
-  // Kottayam fields: taluk, town_panchayat, city stored directly on the listing
   const locationParts = [
     listing.town_panchayat,
     listing.taluk,
+    listing.city,
     'Kottayam District',
     'Kerala',
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
   const locationDisplay = locationParts.join(', ');
 
   const waMsg = `Hi, I found your property on qkit (ID: ${listing.listing_id}) - ${listing.title}. I am interested, please share more details.`;
   const waUrl = buildWhatsAppUrl(listing.seller_phone, waMsg);
-
-  const txLabels: Record<string, string> = { sale: 'For Sale', rent: 'For Rent', lease: 'For Lease', auction: 'Auction' };
-  const attrs = listing.attributes as Record<string, string | number | boolean> | undefined;
+  const attrs = listing.attributes ?? {};
 
   return (
     <>
@@ -110,24 +131,21 @@ export default async function PropertyDetailPage({ params }: Props) {
 
         <div className="container-qkit py-8">
           <div className="grid lg:grid-cols-3 gap-8">
-            {/* Left: Images + Details */}
+            {/* ── Left: Images + Details ── */}
             <div className="lg:col-span-2 space-y-6">
+
               {/* Image gallery */}
               <div className="card overflow-hidden">
                 <div className="relative h-72 sm:h-96 bg-slate-100">
                   {images[0] ? (
-                    <Image
-                      src={(images[0] as { url: string }).url}
+                    <img
+                      src={images[0].url}
                       alt={listing.title}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width:1024px) 100vw, 66vw"
-                      priority
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="flex items-center justify-center h-full text-slate-300 text-6xl">🏠</div>
                   )}
-                  {/* Badges */}
                   <div className="absolute top-4 left-4 flex flex-col gap-2">
                     {listing.is_featured && <span className="badge-featured text-sm">⭐ Featured</span>}
                     {listing.is_verified && (
@@ -146,7 +164,7 @@ export default async function PropertyDetailPage({ params }: Props) {
                   <div className="flex gap-2 p-4 overflow-x-auto no-scrollbar">
                     {images.slice(1).map((img, i) => (
                       <div key={i} className="relative w-24 h-16 flex-shrink-0 rounded-xl overflow-hidden cursor-pointer hover:ring-2 hover:ring-brand-400 transition-all">
-                        <Image src={(img as { url: string }).url} alt={`Photo ${i+2}`} fill className="object-cover" sizes="96px" />
+                        <img src={img.url} alt={`Photo ${i + 2}`} className="w-full h-full object-cover" />
                       </div>
                     ))}
                   </div>
@@ -157,35 +175,37 @@ export default async function PropertyDetailPage({ params }: Props) {
               <div className="lg:hidden card p-5">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <h1 className="font-heading font-bold text-xl text-slate-900 leading-tight">{listing.title}</h1>
-                  <button className="p-2 rounded-xl hover:bg-slate-100" aria-label="Share"><Share2 className="w-5 h-5 text-slate-500" /></button>
+                  <button className="p-2 rounded-xl hover:bg-slate-100" aria-label="Share">
+                    <Share2 className="w-5 h-5 text-slate-500" />
+                  </button>
                 </div>
                 <div className="font-heading font-bold text-3xl text-brand-600 mb-1">{priceDisplay}</div>
                 {listing.negotiable && <span className="badge-slate">Negotiable</span>}
-                <div className="flex items-center gap-2 text-slate-500 text-sm mt-3">
-                  <MapPin className="w-4 h-4 text-brand-500" />
-                  <span>{locationDisplay}</span>
-                </div>
+                {locationDisplay && (
+                  <div className="flex items-center gap-2 text-slate-500 text-sm mt-3">
+                    <MapPin className="w-4 h-4 text-brand-500" />
+                    <span>{locationDisplay}</span>
+                  </div>
+                )}
               </div>
 
-              {/* Key details card */}
+              {/* Property Details */}
               <div className="card p-6">
                 <h2 className="font-heading font-semibold text-slate-900 mb-5">Property Details</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  <Detail label="Property Type" value={listing.category_slug || listing.category?.name} />
-                  <Detail label="Transaction" value={txLabels[listing.transaction_type]} />
+                  <Detail label="Property Type" value={listing.category_slug ?? listing.category?.name} />
+                  <Detail label="Transaction" value={TX_LABELS[listing.transaction_type]} />
                   <Detail label="Total Area" value={areaDisplay} />
-                  {attrs?.bedrooms && <Detail label="Bedrooms" value={`${attrs.bedrooms} BHK`} />}
-                  {attrs?.bathrooms && <Detail label="Bathrooms" value={String(attrs.bathrooms)} />}
-                  {attrs?.floor && <Detail label="Floor" value={`${attrs.floor} of ${attrs.total_floors || '?'}`} />}
-                  {attrs?.furnishing && <Detail label="Furnishing" value={String(attrs.furnishing).replace('-',' ')} />}
-                  {attrs?.parking && <Detail label="Parking" value={String(attrs.parking)} />}
-                  {attrs?.facing && <Detail label="Facing" value={String(attrs.facing)} />}
-                  {attrs?.age && <Detail label="Property Age" value={String(attrs.age)} />}
-                  {attrs?.frontage && <Detail label="Frontage" value={String(attrs.frontage)} />}
-                  {attrs?.road_width && <Detail label="Road Width" value={String(attrs.road_width)} />}
-                  {attrs?.zoning && <Detail label="Zoning" value={String(attrs.zoning)} />}
-                  {attrs?.crop && <Detail label="Crop Type" value={String(attrs.crop)} />}
-                  {attrs?.irrigation && <Detail label="Irrigation" value={String(attrs.irrigation)} />}
+                  {attrs.bedrooms && <Detail label="Bedrooms" value={`${attrs.bedrooms} BHK`} />}
+                  {attrs.bathrooms && <Detail label="Bathrooms" value={String(attrs.bathrooms)} />}
+                  {attrs.floor && <Detail label="Floor" value={`${attrs.floor} of ${attrs.total_floors ?? '?'}`} />}
+                  {attrs.furnishing && <Detail label="Furnishing" value={String(attrs.furnishing).replace('-', ' ')} />}
+                  {attrs.parking && <Detail label="Parking" value={String(attrs.parking)} />}
+                  {attrs.facing && <Detail label="Facing" value={String(attrs.facing)} />}
+                  {attrs.age && <Detail label="Property Age" value={String(attrs.age)} />}
+                  {attrs.frontage && <Detail label="Frontage" value={String(attrs.frontage)} />}
+                  {attrs.road_width && <Detail label="Road Width" value={String(attrs.road_width)} />}
+                  {attrs.zoning && <Detail label="Zoning" value={String(attrs.zoning)} />}
                 </div>
               </div>
 
@@ -200,10 +220,12 @@ export default async function PropertyDetailPage({ params }: Props) {
               {/* Location */}
               <div className="card p-6">
                 <h2 className="font-heading font-semibold text-slate-900 mb-4">Location</h2>
-                <div className="flex items-start gap-2 mb-4">
-                  <MapPin className="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-slate-600 text-sm">{locationDisplay}</p>
-                </div>
+                {locationDisplay && (
+                  <div className="flex items-start gap-2 mb-4">
+                    <MapPin className="w-4 h-4 text-brand-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-slate-600 text-sm">{locationDisplay}</p>
+                  </div>
+                )}
                 <div className="h-48 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-200">
                   <div className="text-center">
                     <MapPin className="w-8 h-8 mx-auto mb-2 text-brand-400" />
@@ -218,20 +240,24 @@ export default async function PropertyDetailPage({ params }: Props) {
                 <span>Listing ID: <strong className="text-slate-600">{listing.listing_id}</strong></span>
                 <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />Posted {timeAgo(listing.created_at)}</span>
                 <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" />{(listing.views_count ?? 0).toLocaleString('en-IN')} views</span>
-                <Link href="#" className="flex items-center gap-1 text-red-400 hover:text-red-600 ml-auto"><Flag className="w-3.5 h-3.5" />Report</Link>
+                <Link href="#" className="flex items-center gap-1 text-red-400 hover:text-red-600 ml-auto">
+                  <Flag className="w-3.5 h-3.5" />Report
+                </Link>
               </div>
             </div>
 
-            {/* Right: Contact sidebar */}
+            {/* ── Right: Contact sidebar ── */}
             <div className="space-y-5">
               {/* Price (desktop) */}
               <div className="hidden lg:block card p-6">
                 <div className="font-heading font-bold text-3xl text-brand-600 mb-1">{priceDisplay}</div>
                 {listing.negotiable && <span className="badge-slate text-xs">Negotiable</span>}
-                <div className="flex items-center gap-2 text-slate-500 text-sm mt-3">
-                  <MapPin className="w-4 h-4 text-brand-500 flex-shrink-0" />
-                  <span className="line-clamp-2">{locationDisplay}</span>
-                </div>
+                {locationDisplay && (
+                  <div className="flex items-center gap-2 text-slate-500 text-sm mt-3">
+                    <MapPin className="w-4 h-4 text-brand-500 flex-shrink-0" />
+                    <span className="line-clamp-2">{locationDisplay}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-xs text-slate-400">
                   <span>{listing.listing_id}</span>
                   <span>{timeAgo(listing.created_at)}</span>
@@ -249,7 +275,7 @@ export default async function PropertyDetailPage({ params }: Props) {
                     <p className="text-xs text-slate-500 capitalize">{listing.seller_type}</p>
                   </div>
                   {listing.is_verified && (
-                    <span className="badge-verified ml-auto flex items-center gap-1">
+                    <span className="badge-verified ml-auto flex items-center gap-1 text-xs">
                       <CheckCircle className="w-3 h-3" />Verified
                     </span>
                   )}
@@ -262,10 +288,14 @@ export default async function PropertyDetailPage({ params }: Props) {
                 <div className="space-y-2.5">
                   <a href={`tel:${listing.seller_phone}`} className="btn-primary btn-lg w-full">
                     <Phone className="w-4 h-4" />
-                    Call {formatPhoneDisplay(listing.seller_phone).slice(0, 10)}…
+                    Call {formatPhoneDisplay(listing.seller_phone)}
                   </a>
-                  <a href={waUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-green-500 text-green-700 font-semibold text-sm hover:bg-green-50 transition-colors">
+                  <a
+                    href={waUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border-2 border-green-500 text-green-700 font-semibold text-sm hover:bg-green-50 transition-colors"
+                  >
                     <MessageCircle className="w-4 h-4" />
                     WhatsApp Enquiry
                   </a>
@@ -285,22 +315,29 @@ export default async function PropertyDetailPage({ params }: Props) {
             <div className="mt-12">
               <h2 className="font-heading font-bold text-2xl text-slate-900 mb-6">Similar Properties</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                {similar.map(l => (
-                  <Link key={l.id} href={`/property/${l.slug}`} className="card card-hover overflow-hidden group block">
-                    <div className="relative h-40 bg-slate-100">
-                      {l.media?.[0]?.url ? (
-                        <Image src={(l.media[0] as { url: string }).url} alt={l.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="(max-width:640px) 100vw, 25vw" />
-                      ) : (
-                        <div className="flex items-center justify-center h-full text-slate-300 text-4xl">🏠</div>
-                      )}
-                    </div>
-                    <div className="p-4">
-                      <p className="font-semibold text-slate-900 text-sm line-clamp-1 mb-1">{l.title}</p>
-                      <p className="text-brand-600 font-bold text-sm">{formatIndianPrice(l.price, l.price_unit)}</p>
-                      <p className="text-xs text-slate-400 mt-1">{l.taluk || 'Kottayam'}</p>
-                    </div>
-                  </Link>
-                ))}
+                {similar.map(l => {
+                  const sim = l as typeof l & { taluk?: string; media?: { url: string }[] };
+                  return (
+                    <Link key={l.id} href={`/property/${l.slug}`} className="card card-hover overflow-hidden group block">
+                      <div className="relative h-40 bg-slate-100">
+                        {sim.media?.[0]?.url ? (
+                          <img
+                            src={sim.media[0].url}
+                            alt={l.title}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-slate-300 text-4xl">🏠</div>
+                        )}
+                      </div>
+                      <div className="p-4">
+                        <p className="font-semibold text-slate-900 text-sm line-clamp-1 mb-1">{l.title}</p>
+                        <p className="text-brand-600 font-bold text-sm">{formatIndianPrice(l.price, l.price_unit)}</p>
+                        <p className="text-xs text-slate-400 mt-1">{sim.taluk ?? 'Kottayam'}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -311,23 +348,17 @@ export default async function PropertyDetailPage({ params }: Props) {
           <a href={`tel:${listing.seller_phone}`} className="flex-1 btn-primary btn-lg text-sm">
             <Phone className="w-4 h-4" />Call
           </a>
-          <a href={waUrl} target="_blank" rel="noopener noreferrer"
-            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-green-500 text-green-700 font-semibold text-sm hover:bg-green-50">
+          <a
+            href={waUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-green-500 text-green-700 font-semibold text-sm hover:bg-green-50"
+          >
             <MessageCircle className="w-4 h-4" />WhatsApp
           </a>
         </div>
       </main>
       <Footer />
     </>
-  );
-}
-
-function Detail({ label, value }: { label: string; value?: string }) {
-  if (!value) return null;
-  return (
-    <div>
-      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
-      <p className="text-sm font-semibold text-slate-800 capitalize">{value}</p>
-    </div>
   );
 }

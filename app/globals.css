@@ -17,10 +17,13 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden; /* prevent any rogue element from causing horizontal scroll on mobile */
   }
 
   body {
     @apply bg-slate-50 text-slate-900 font-sans;
+    overflow-x: hidden;
+    word-break: break-word; /* prevent long unbroken strings from busting layout */
   }
 
   h1, h2, h3, h4, h5, h6 {

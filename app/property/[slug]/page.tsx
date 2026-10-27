@@ -135,7 +135,7 @@ export default function PropertyDetailPage() {
   return (
     <>
       <Header />
-      <main className="min-h-screen pb-28 lg:pb-12 pt-16">
+      <main className="min-h-screen pb-28 lg:pb-12 pt-16 overflow-x-hidden">
 
         {/* Breadcrumb */}
         <div className="bg-white border-b border-slate-100 py-3">
@@ -239,7 +239,7 @@ export default function PropertyDetailPage() {
               {/* ── Title + Price (mobile only — shown above details) ── */}
               <div className="lg:hidden bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
                 <div className="flex items-start justify-between gap-3 mb-2">
-                  <h1 className="font-heading font-bold text-lg text-slate-900 leading-tight">{listing.title}</h1>
+                  <h1 className="font-heading font-bold text-lg text-slate-900 leading-tight break-words">{listing.title}</h1>
                   <button
                     className="p-2 rounded-xl hover:bg-slate-100 flex-shrink-0"
                     aria-label="Share"
@@ -288,7 +288,7 @@ export default function PropertyDetailPage() {
               {listing.description && (
                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 lg:p-6">
                   <h2 className="font-heading font-semibold text-slate-900 mb-3">About this Property</h2>
-                  <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{listing.description}</p>
+                  <p className="text-slate-600 text-sm leading-relaxed whitespace-pre-line break-words">{listing.description}</p>
                 </div>
               )}
 

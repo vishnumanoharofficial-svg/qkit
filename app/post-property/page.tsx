@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -99,6 +99,9 @@ export default function PostPropertyPage() {
     if (!form.area)             e.area             = 'Required';
     if (!form.seller_name)      e.seller_name      = 'Required';
     if (!form.seller_phone || form.seller_phone.replace(/\D/g,'').length !== 10) e.seller_phone = 'Valid 10-digit number required';
+    // Require BHK + bathrooms for residential categories
+    if (showFields.includes('bedrooms')  && !form.bedrooms)  e.bedrooms  = 'Required';
+    if (showFields.includes('bathrooms') && !form.bathrooms) e.bathrooms = 'Required';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -371,20 +374,22 @@ export default function PostPropertyPage() {
                   <div className="grid grid-cols-2 gap-4">
                     {showFields.includes('bedrooms') && (
                       <div>
-                        <label className="label">Bedrooms</label>
+                        <label className="label">Bedrooms <span className="text-red-500">*</span></label>
                         <select className="input" value={form.bedrooms} onChange={e => setField('bedrooms', e.target.value)}>
                           <option value="">Select…</option>
                           {['1 RK','1','2','3','4','4+'].map(v => <option key={v} value={v}>{v} {v!=='1 RK'?'BHK':''}</option>)}
                         </select>
+                        {errors.bedrooms && <p className="text-xs text-red-500 mt-1">{errors.bedrooms}</p>}
                       </div>
                     )}
                     {showFields.includes('bathrooms') && (
                       <div>
-                        <label className="label">Bathrooms</label>
+                        <label className="label">Bathrooms <span className="text-red-500">*</span></label>
                         <select className="input" value={form.bathrooms} onChange={e => setField('bathrooms', e.target.value)}>
                           <option value="">Select…</option>
                           {['1','2','3','4','4+'].map(v => <option key={v} value={v}>{v}</option>)}
                         </select>
+                        {errors.bathrooms && <p className="text-xs text-red-500 mt-1">{errors.bathrooms}</p>}
                       </div>
                     )}
                     {showFields.includes('floor') && (

@@ -33,16 +33,8 @@ const BUDGET_OPTIONS = [
   { label: 'Above ₹2 Crore', value: '20000000-' },
 ];
 
-const KOTTAYAM_LOCATIONS = [
-  { name: 'Kottayam Town',  img: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=400&q=70' },
-  { name: 'Changanassery',  img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=70' },
-  { name: 'Pala',           img: 'https://images.unsplash.com/photo-1494783367193-149034c05e8f?w=400&q=70' },
-  { name: 'Ettumanoor',     img: 'https://images.unsplash.com/photo-1552083375-1447ce886485?w=400&q=70' },
-  { name: 'Vaikom',         img: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&q=70' },
-  { name: 'Kanjirappally',  img: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&q=70' },
-  { name: 'Ponkunnam',      img: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=400&q=70' },
-  { name: 'Kaduthuruthy',   img: 'https://images.unsplash.com/photo-1482192505345-5852310b1252?w=400&q=70' },
-];
+
+
 
 const TRUST_BADGES = [
   { icon: ShieldCheck, label: 'Verified Listings' },
@@ -277,8 +269,53 @@ function FeaturedProperties({ listings }: { listings: PropertyListing[] }) {
 
 // ─── Explore by Location ──────────────────────────────────────────────────────
 
+type LocationCard = {
+  name: string;
+  type: 'town' | 'taluk';
+  count: number;
+  filterKey: string;
+  filterValue: string;
+};
+
+// Curated background images keyed by lowercase location name — fallback to gradient
+const LOCATION_IMAGES: Record<string, string> = {
+  'kottayam':       'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=400&q=70',
+  'changanassery':  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=70',
+  'pala':           'https://images.unsplash.com/photo-1494783367193-149034c05e8f?w=400&q=70',
+  'ettumanoor':     'https://images.unsplash.com/photo-1552083375-1447ce886485?w=400&q=70',
+  'vaikom':         'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&q=70',
+  'kanjirappally':  'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&q=70',
+  'ponkunnam':      'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=400&q=70',
+  'kaduthuruthy':   'https://images.unsplash.com/photo-1482192505345-5852310b1252?w=400&q=70',
+  'erattupetta':    'https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?w=400&q=70',
+  'meenachil':      'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=400&q=70',
+  'kumarakom':      'https://images.unsplash.com/photo-1552083375-1447ce886485?w=400&q=70',
+  'erumeli':        'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=400&q=70',
+};
+
+function getLocationImage(name: string): string {
+  const key = name.toLowerCase().trim();
+  // Exact match
+  if (LOCATION_IMAGES[key]) return LOCATION_IMAGES[key];
+  // Partial match
+  const partial = Object.keys(LOCATION_IMAGES).find(k => key.includes(k) || k.includes(key));
+  if (partial) return LOCATION_IMAGES[partial];
+  // Default Kerala landscape
+  return 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&q=70';
+}
+
 function ExploreLocations() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [locations, setLocations] = useState<LocationCard[]>([]);
+  const [loading, setLoading]     = useState(true);
+
+  useEffect(() => {
+    fetch('/api/locations/popular')
+      .then(r => r.json())
+      .then(json => setLocations(json.locations ?? []))
+      .catch(() => setLocations([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   function scroll(dir: 'left' | 'right') {
     const el = scrollRef.current;
@@ -286,13 +323,18 @@ function ExploreLocations() {
     el.scrollBy({ left: dir === 'left' ? -240 : 240, behavior: 'smooth' });
   }
 
+  // Skeleton cards while loading
+  const skeletons = Array.from({ length: 5 });
+
   return (
     <section className="py-12 bg-slate-50">
       <div className="container-qkit">
         <div className="flex items-end justify-between mb-6">
           <div>
             <h2 className="section-heading">Explore by Location</h2>
-            <p className="section-sub">Popular areas in Kottayam district</p>
+            <p className="section-sub">
+              {loading ? 'Loading active areas…' : `Areas with active listings in Kottayam`}
+            </p>
           </div>
           <div className="hidden md:flex gap-2">
             <button onClick={() => scroll('left')} className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
@@ -305,25 +347,53 @@ function ExploreLocations() {
         </div>
 
         <div ref={scrollRef} className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-          {KOTTAYAM_LOCATIONS.map(loc => (
-            <Link
-              key={loc.name}
-              href={`/properties?location=${encodeURIComponent(loc.name)}`}
-              className="flex-shrink-0 w-40 sm:w-48 relative rounded-2xl overflow-hidden group cursor-pointer"
-            >
-              <div className="h-32 sm:h-36 bg-slate-200 relative overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={loc.img}
-                  alt={loc.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-                <p className="absolute bottom-3 left-3 text-white text-sm font-bold drop-shadow">{loc.name}</p>
-              </div>
-            </Link>
-          ))}
+          {loading ? (
+            skeletons.map((_, i) => (
+              <div key={i} className="flex-shrink-0 w-40 sm:w-48 h-36 rounded-2xl skeleton" />
+            ))
+          ) : locations.length === 0 ? (
+            <p className="text-slate-400 text-sm py-8">No locations with listings yet.</p>
+          ) : (
+            locations.map(loc => {
+              // Build filter URL — use the correct DB column key
+              const params = new URLSearchParams();
+              params.set(loc.filterKey, loc.filterValue);
+              const href = `/properties?${params.toString()}`;
+
+              return (
+                <Link
+                  key={loc.name}
+                  href={href}
+                  className="flex-shrink-0 w-40 sm:w-48 relative rounded-2xl overflow-hidden group cursor-pointer"
+                >
+                  <div className="h-32 sm:h-36 bg-slate-200 relative overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={getLocationImage(loc.name)}
+                      alt={loc.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+                    {/* Location name */}
+                    <p className="absolute bottom-7 left-3 right-3 text-white text-sm font-bold drop-shadow leading-tight">{loc.name}</p>
+                    {/* Listing count badge */}
+                    <div className="absolute bottom-2 left-3 flex items-center gap-1">
+                      <span className="text-white/80 text-[11px] font-medium">
+                        {loc.count} {loc.count === 1 ? 'listing' : 'listings'}
+                      </span>
+                    </div>
+                    {/* Taluk badge */}
+                    {loc.type === 'taluk' && (
+                      <div className="absolute top-2 right-2 bg-brand-600/80 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                        Taluk
+                      </div>
+                    )}
+                  </div>
+                </Link>
+              );
+            })
+          )}
         </div>
       </div>
     </section>

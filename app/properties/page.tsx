@@ -124,6 +124,10 @@ function PropertiesPageInner() {
     transaction_type: searchParams.get('type') || '',
     category:         searchParams.get('category') || '',
     featured:         searchParams.get('featured') === 'true',
+    // Location card clicks pass taluk= or town_panchayat= directly
+    taluk:          searchParams.get('taluk') || '',
+    town_panchayat: searchParams.get('town_panchayat') || '',
+    locality:       searchParams.get('locality') || '',
   });
 
   // Derived: towns for selected taluk
@@ -143,6 +147,9 @@ function PropertiesPageInner() {
     params.set('sort', sort);
     if (filters.transaction_type) params.set('type', filters.transaction_type);
     if (filters.featured)         params.set('featured', 'true');
+    // Pass location filters server-side for accurate DB-level filtering
+    if (filters.taluk)          params.set('taluk', filters.taluk);
+    if (filters.town_panchayat) params.set('town_panchayat', filters.town_panchayat);
 
     fetch(`/api/properties?${params.toString()}`)
       .then(r => r.json())
@@ -154,23 +161,16 @@ function PropertiesPageInner() {
           address_line?: string;
         })[];
 
-        // ── Client-side filters ──
+        // ── Client-side filters (fields not handled server-side) ──
         if (filters.category)    data = data.filter(l => l.category?.slug === filters.category || (l as unknown as Record<string,string>).category_slug === filters.category);
         if (filters.seller_type) data = data.filter(l => l.seller_type === filters.seller_type);
         if (filters.verified)    data = data.filter(l => l.is_verified);
         if (filters.min_price)   data = data.filter(l => l.price >= Number(filters.min_price));
         if (filters.max_price)   data = data.filter(l => l.price <= Number(filters.max_price));
-
-        // Location filters
-        if (filters.taluk)         data = data.filter(l => l.taluk?.toLowerCase() === filters.taluk.toLowerCase());
-        if (filters.town_panchayat) data = data.filter(l =>
-          l.town_panchayat?.toLowerCase() === filters.town_panchayat.toLowerCase() ||
-          (l as unknown as Record<string,string>).city?.toLowerCase() === filters.town_panchayat.toLowerCase()
-        );
-        if (filters.locality)      data = data.filter(l =>
+        // Locality: sub-area text search within address_line
+        if (filters.locality) data = data.filter(l =>
           l.address_line?.toLowerCase().includes(filters.locality.toLowerCase())
         );
-
         // Property detail filters (from attributes JSONB)
         if (filters.bedrooms) data = data.filter(l => {
           const attrs = l.attributes as Record<string, string | number | boolean> | undefined;
@@ -464,7 +464,13 @@ function PropertiesPageInner() {
         {/* Page header */}
         <div className="bg-white border-b border-slate-100 py-5">
           <div className="container-qkit">
-            <h1 className="font-heading text-2xl font-bold text-slate-900">All Properties in Kottayam</h1>
+            <h1 className="font-heading text-2xl font-bold text-slate-900">
+              {filters.town_panchayat
+                ? `Properties in ${filters.town_panchayat}`
+                : filters.taluk
+                  ? `Properties in ${filters.taluk} Taluk`
+                  : 'All Properties in Kottayam'}
+            </h1>
             <p className="text-slate-500 text-sm mt-1">
               {loading ? 'Loading…' : `${listings.length} propert${listings.length === 1 ? 'y' : 'ies'} found`}
               {activeFilterCount > 0 && <span className="ml-2 text-brand-600 font-medium">({activeFilterCount} filter{activeFilterCount > 1 ? 's' : ''} active)</span>}

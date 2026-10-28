@@ -5,7 +5,7 @@ import { generateListingId, slugify } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { verifySessionToken, COOKIE_NAME } from '@/lib/auth/session';
 
-// GET /api/properties?status=published&category=apartments&limit=12&page=1&user_id=<uuid>&seller_phone=<email>
+// GET /api/properties?status=published&category=apartments&limit=12&page=1&user_id=<uuid>&seller_phone=<email>&taluk=Kottayam&town_panchayat=Ettumanoor
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const statusParam    = searchParams.get('status');
@@ -13,11 +13,15 @@ export async function GET(request: NextRequest) {
   const type           = searchParams.get('type');
   const userIdParam    = searchParams.get('user_id');
   const sellerPhone    = searchParams.get('seller_phone');
-  const limit          = Math.min(Number(searchParams.get('limit') ?? 12), 50);
+  const limit          = Math.min(Number(searchParams.get('limit') ?? 12), 100);
   const page           = Math.max(Number(searchParams.get('page') ?? 1), 1);
   const offset         = (page - 1) * limit;
   const featured       = searchParams.get('featured');
   const sort           = searchParams.get('sort') ?? 'newest';
+  // Location filters
+  const talukParam         = searchParams.get('taluk');
+  const townParam          = searchParams.get('town_panchayat');
+  const locationParam      = searchParams.get('location'); // legacy — matches taluk OR town
 
   try {
     const supabase = createClient(
@@ -40,6 +44,15 @@ export async function GET(request: NextRequest) {
     if (sellerPhone) query = query.eq('seller_phone', sellerPhone);
     if (type)        query = query.eq('transaction_type', type);
     if (featured)    query = query.eq('is_featured', true);
+    // Location filters — server-side for accuracy
+    if (talukParam)  query = query.ilike('taluk', talukParam);
+    if (townParam)   query = query.or(`town_panchayat.ilike.${townParam},city.ilike.${townParam}`);
+    // Legacy ?location= param: try to match taluk OR town_panchayat OR city
+    if (locationParam && !talukParam && !townParam) {
+      query = query.or(
+        `taluk.ilike.${locationParam},town_panchayat.ilike.${locationParam},city.ilike.${locationParam},address_line.ilike.%${locationParam}%`
+      );
+    }
 
     switch (sort) {
       case 'price_asc':  query = query.order('price', { ascending: true });  break;

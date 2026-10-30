@@ -86,11 +86,14 @@ export default function PropertyCard({
   }
 
   return (
-    <div className={cn(
-      'bg-white rounded-2xl overflow-hidden shadow-card border border-slate-100',
-      'hover:shadow-card-hover transition-all duration-300 hover:-translate-y-0.5 flex flex-col',
-      className
-    )}>
+    <Link
+      href={`/property/${listing.slug}`}
+      className={cn(
+        'bg-white rounded-2xl overflow-hidden shadow-card border border-slate-100',
+        'hover:shadow-card-hover transition-all duration-300 hover:-translate-y-0.5 flex flex-col cursor-pointer',
+        className
+      )}
+    >
       {/* ── Image ── */}
       <div className="relative h-48 bg-slate-100 overflow-hidden flex-shrink-0">
         {imgUrl && !imgError ? (
@@ -201,13 +204,10 @@ export default function PropertyCard({
         )}
 
         {/* ── View Details ── */}
-        <Link
-          href={`/property/${listing.slug}`}
-          className="text-center text-xs text-brand-600 hover:text-brand-700 font-semibold hover:underline transition-colors py-1"
-        >
+        <span className="text-center text-xs text-brand-600 font-semibold py-1">
           View Details →
-        </Link>
+        </span>
       </div>
-    </div>
+    </Link>
   );
 }

@@ -8,8 +8,7 @@ import PropertyCard from '@/components/property/PropertyCard';
 import {
   Search, MapPin, Home, Building2, Trees, Landmark, Store, Grid3x3,
   ChevronDown, ShieldCheck, Users, Tag, ChevronLeft, ChevronRight,
-  ArrowRight, Phone, MessageCircle, Plus, Warehouse, Building, Key,
-  LayoutGrid, TrendingUp, Leaf,
+  ArrowRight, Phone, MessageCircle, Plus,
 } from 'lucide-react';
 import { cn, formatIndianPrice } from '@/lib/utils';
 import type { PropertyListing } from '@/lib/types';
@@ -401,30 +400,41 @@ function ExploreLocations() {
   );
 }
 
-// ─── Explore by Property Segment (reusable card row) ─────────────────────────
+// ─── Reusable Property Listing Carousel (real PropertyCards like Featured) ─────
 
-interface SegmentCard {
-  label: string;
-  sublabel?: string;
-  href: string;
-  bg: string;          // Tailwind gradient class
-  icon: React.ElementType;
-  iconColor: string;
-  badge?: string;
-}
-
-function SegmentCardRow({
-  title, subtitle, cards, bg = 'bg-white',
+function PropertyListingCarousel({
+  title,
+  subtitle,
+  apiUrl,
+  viewAllHref,
+  bg = 'bg-white',
+  badgeColor = 'bg-brand-600',
 }: {
   title: string;
   subtitle: string;
-  cards: SegmentCard[];
+  apiUrl: string;
+  viewAllHref: string;
   bg?: string;
+  badgeColor?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [listings, setListings] = useState<PropertyListing[]>([]);
+  const [loading, setLoading]   = useState(true);
+
+  useEffect(() => {
+    fetch(apiUrl)
+      .then(r => r.json())
+      .then(res => setListings(res.data ?? []))
+      .catch(() => setListings([]))
+      .finally(() => setLoading(false));
+  }, [apiUrl]);
+
   function scroll(dir: 'left' | 'right') {
-    scrollRef.current?.scrollBy({ left: dir === 'left' ? -260 : 260, behavior: 'smooth' });
+    scrollRef.current?.scrollBy({ left: dir === 'left' ? -300 : 300, behavior: 'smooth' });
   }
+
+  // If not loading and no listings — skip rendering this section entirely
+  if (!loading && listings.length === 0) return null;
 
   return (
     <section className={`py-12 ${bg}`}>
@@ -434,257 +444,59 @@ function SegmentCardRow({
             <h2 className="section-heading">{title}</h2>
             <p className="section-sub">{subtitle}</p>
           </div>
-          <div className="hidden md:flex gap-2">
-            <button onClick={() => scroll('left')} className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
-              <ChevronLeft className="w-4 h-4 text-slate-600" />
-            </button>
-            <button onClick={() => scroll('right')} className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
-              <ChevronRight className="w-4 h-4 text-slate-600" />
-            </button>
+          <div className="flex items-center gap-3">
+            {/* Desktop scroll arrows */}
+            <div className="hidden md:flex gap-2">
+              <button onClick={() => scroll('left')}
+                className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
+                <ChevronLeft className="w-4 h-4 text-slate-600" />
+              </button>
+              <button onClick={() => scroll('right')}
+                className="w-9 h-9 rounded-full border border-slate-200 bg-white flex items-center justify-center hover:bg-slate-50 transition-colors">
+                <ChevronRight className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+            <Link href={viewAllHref}
+              className="flex items-center gap-1 text-brand-600 hover:text-brand-700 text-sm font-semibold transition-colors whitespace-nowrap">
+              View All <ArrowRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
 
-        <div ref={scrollRef} className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-          {cards.map(card => {
-            const Icon = card.icon;
-            return (
-              <Link
-                key={card.label}
-                href={card.href}
-                className="flex-shrink-0 w-44 sm:w-52 group"
-              >
-                <div className={`rounded-2xl p-5 flex flex-col gap-3 h-full border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 ${card.bg}`}>
-                  {/* Icon circle */}
-                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center bg-white/70 shadow-sm`}>
-                    <Icon className={`w-5 h-5 ${card.iconColor}`} />
-                  </div>
+        {loading ? (
+          /* Skeleton shimmer cards */
+          <div className="flex gap-5 overflow-hidden">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="flex-shrink-0 w-72 h-80 skeleton rounded-2xl" />
+            ))}
+          </div>
+        ) : (
+          <div className="relative">
+            {/* Prev arrow — desktop only */}
+            <button onClick={() => scroll('left')}
+              className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white rounded-full shadow-md border border-slate-100 flex items-center justify-center hover:bg-slate-50 transition-colors hidden md:flex">
+              <ChevronLeft className="w-5 h-5 text-slate-600" />
+            </button>
 
-                  {/* Label */}
-                  <div className="flex-1">
-                    <p className="font-heading font-bold text-slate-900 text-sm leading-snug">{card.label}</p>
-                    {card.sublabel && (
-                      <p className="text-slate-500 text-xs mt-0.5">{card.sublabel}</p>
-                    )}
-                  </div>
-
-                  {/* CTA row */}
-                  <div className="flex items-center justify-between">
-                    {card.badge ? (
-                      <span className="text-[11px] font-semibold bg-white/80 text-slate-600 px-2 py-0.5 rounded-full">{card.badge}</span>
-                    ) : <span />}
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-brand-600 group-hover:translate-x-0.5 transition-all" />
-                  </div>
+            <div ref={scrollRef} className="flex gap-5 overflow-x-auto no-scrollbar pb-2 scroll-smooth">
+              {listings.map(l => (
+                <div key={l.id} className="flex-shrink-0 w-72 sm:w-80">
+                  <PropertyCard listing={l} />
                 </div>
-              </Link>
-            );
-          })}
-        </div>
+              ))}
+            </div>
+
+            {/* Next arrow — desktop only */}
+            <button onClick={() => scroll('right')}
+              className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white rounded-full shadow-md border border-slate-100 flex items-center justify-center hover:bg-slate-50 transition-colors hidden md:flex">
+              <ChevronRight className="w-5 h-5 text-slate-600" />
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
 }
-
-// ─── Segment data ─────────────────────────────────────────────────────────────
-
-const PROPERTY_TYPE_SEGMENTS: SegmentCard[] = [
-  {
-    label: 'Houses & Villas',
-    sublabel: 'Detached homes & villas',
-    href: '/properties?category=houses',
-    bg: 'bg-gradient-to-br from-blue-50 to-indigo-50',
-    icon: Home,
-    iconColor: 'text-blue-600',
-    badge: 'Popular',
-  },
-  {
-    label: 'Apartments & Flats',
-    sublabel: 'Multi-storey living',
-    href: '/properties?category=apartments',
-    bg: 'bg-gradient-to-br from-violet-50 to-purple-50',
-    icon: Building2,
-    iconColor: 'text-violet-600',
-  },
-  {
-    label: 'Residential Plots',
-    sublabel: 'Land for construction',
-    href: '/properties?category=residential-plots',
-    bg: 'bg-gradient-to-br from-green-50 to-emerald-50',
-    icon: Leaf,
-    iconColor: 'text-green-600',
-  },
-  {
-    label: 'Commercial Properties',
-    sublabel: 'Shops, offices & more',
-    href: '/properties?category=commercial',
-    bg: 'bg-gradient-to-br from-amber-50 to-orange-50',
-    icon: Store,
-    iconColor: 'text-amber-600',
-  },
-  {
-    label: 'Agricultural Land',
-    sublabel: 'Farm & cultivation plots',
-    href: '/properties?category=agricultural-land',
-    bg: 'bg-gradient-to-br from-lime-50 to-green-50',
-    icon: Trees,
-    iconColor: 'text-lime-700',
-  },
-  {
-    label: 'Industrial / Warehouse',
-    sublabel: 'Factory & storage space',
-    href: '/properties?category=commercial&subcategory=warehouse',
-    bg: 'bg-gradient-to-br from-slate-50 to-zinc-100',
-    icon: Warehouse,
-    iconColor: 'text-slate-600',
-  },
-];
-
-const HOUSES_VILLAS_SEGMENTS: SegmentCard[] = [
-  {
-    label: 'Houses for Sale',
-    sublabel: 'Buy your dream home',
-    href: '/properties?category=houses&type=sale',
-    bg: 'bg-gradient-to-br from-green-50 to-teal-50',
-    icon: Home,
-    iconColor: 'text-green-600',
-    badge: 'For Sale',
-  },
-  {
-    label: 'Houses for Rent',
-    sublabel: 'Monthly rental homes',
-    href: '/properties?category=houses&type=rent',
-    bg: 'bg-gradient-to-br from-purple-50 to-violet-50',
-    icon: Key,
-    iconColor: 'text-purple-600',
-    badge: 'For Rent',
-  },
-  {
-    label: 'Villas for Sale',
-    sublabel: 'Premium villa properties',
-    href: '/properties?category=houses&type=sale&q=villa',
-    bg: 'bg-gradient-to-br from-rose-50 to-pink-50',
-    icon: Building,
-    iconColor: 'text-rose-600',
-    badge: 'Premium',
-  },
-  {
-    label: 'Villas for Lease',
-    sublabel: 'Long-term villa lease',
-    href: '/properties?category=houses&type=lease&q=villa',
-    bg: 'bg-gradient-to-br from-amber-50 to-yellow-50',
-    icon: Building,
-    iconColor: 'text-amber-600',
-    badge: 'Lease',
-  },
-  {
-    label: '1–2 BHK Homes',
-    sublabel: 'Compact & affordable',
-    href: '/properties?category=houses&bedrooms=1',
-    bg: 'bg-gradient-to-br from-blue-50 to-sky-50',
-    icon: Home,
-    iconColor: 'text-blue-600',
-  },
-  {
-    label: '3+ BHK Homes',
-    sublabel: 'Spacious family homes',
-    href: '/properties?category=houses&bedrooms=3',
-    bg: 'bg-gradient-to-br from-indigo-50 to-blue-50',
-    icon: Home,
-    iconColor: 'text-indigo-600',
-    badge: 'Spacious',
-  },
-];
-
-const PLOTS_SEGMENTS: SegmentCard[] = [
-  {
-    label: 'Plots for Sale',
-    sublabel: 'Build your own home',
-    href: '/properties?category=residential-plots&type=sale',
-    bg: 'bg-gradient-to-br from-emerald-50 to-green-50',
-    icon: Grid3x3,
-    iconColor: 'text-emerald-600',
-    badge: 'For Sale',
-  },
-  {
-    label: 'Under ₹20 Lakhs',
-    sublabel: 'Budget plots & land',
-    href: '/properties?category=residential-plots&price_max=2000000',
-    bg: 'bg-gradient-to-br from-teal-50 to-cyan-50',
-    icon: TrendingUp,
-    iconColor: 'text-teal-600',
-    badge: 'Affordable',
-  },
-  {
-    label: '₹20–50 Lakhs',
-    sublabel: 'Mid-range plots',
-    href: '/properties?category=residential-plots&price_min=2000000&price_max=5000000',
-    bg: 'bg-gradient-to-br from-lime-50 to-green-50',
-    icon: Leaf,
-    iconColor: 'text-lime-700',
-  },
-  {
-    label: 'Above ₹50 Lakhs',
-    sublabel: 'Premium land parcels',
-    href: '/properties?category=residential-plots&price_min=5000000',
-    bg: 'bg-gradient-to-br from-amber-50 to-orange-50',
-    icon: LayoutGrid,
-    iconColor: 'text-amber-600',
-    badge: 'Premium',
-  },
-  {
-    label: 'Agricultural Land',
-    sublabel: 'Farming & cultivation',
-    href: '/properties?category=agricultural-land&type=sale',
-    bg: 'bg-gradient-to-br from-green-50 to-lime-50',
-    icon: Trees,
-    iconColor: 'text-green-700',
-  },
-];
-
-const COMMERCIAL_SEGMENTS: SegmentCard[] = [
-  {
-    label: 'Shops for Rent',
-    sublabel: 'Prime retail spaces',
-    href: '/properties?category=commercial&type=rent',
-    bg: 'bg-gradient-to-br from-orange-50 to-amber-50',
-    icon: Store,
-    iconColor: 'text-orange-600',
-    badge: 'For Rent',
-  },
-  {
-    label: 'Shops for Sale',
-    sublabel: 'Own your business space',
-    href: '/properties?category=commercial&type=sale',
-    bg: 'bg-gradient-to-br from-red-50 to-rose-50',
-    icon: Store,
-    iconColor: 'text-red-600',
-    badge: 'For Sale',
-  },
-  {
-    label: 'Office Space',
-    sublabel: 'Corporate & co-working',
-    href: '/properties?category=commercial&q=office',
-    bg: 'bg-gradient-to-br from-blue-50 to-indigo-50',
-    icon: Building2,
-    iconColor: 'text-blue-600',
-  },
-  {
-    label: 'Warehouse / Godown',
-    sublabel: 'Storage & logistics',
-    href: '/properties?category=commercial&q=warehouse',
-    bg: 'bg-gradient-to-br from-slate-50 to-zinc-100',
-    icon: Warehouse,
-    iconColor: 'text-slate-600',
-  },
-  {
-    label: 'Commercial on Lease',
-    sublabel: 'Long-term commercial lease',
-    href: '/properties?category=commercial&type=lease',
-    bg: 'bg-gradient-to-br from-violet-50 to-purple-50',
-    icon: Building,
-    iconColor: 'text-violet-600',
-    badge: 'Lease',
-  },
-];
 
 // ─── How It Works ─────────────────────────────────────────────────────────────
 
@@ -842,36 +654,49 @@ export default function HomePage() {
         {/* ── EXPLORE BY LOCATION ────────────────────────────── */}
         <ExploreLocations />
 
-        {/* ── EXPLORE BY PROPERTY TYPE ────────────────────────── */}
-        <SegmentCardRow
-          title="Explore by Property Type"
-          subtitle="Browse every category of property in Kottayam"
-          cards={PROPERTY_TYPE_SEGMENTS}
+        {/* ── HOUSES & VILLAS FOR RENT ────────────────────────── */}
+        <PropertyListingCarousel
+          title="Houses & Villas for Rent"
+          subtitle="Rental homes available now in Kottayam"
+          apiUrl="/api/properties?status=published&type=rent&limit=10&sort=newest"
+          viewAllHref="/properties?type=rent"
           bg="bg-white"
         />
 
-        {/* ── HOUSES & VILLAS ─────────────────────────────────── */}
-        <SegmentCardRow
-          title="Houses & Villas"
-          subtitle="Find the perfect home — for sale, rent or lease"
-          cards={HOUSES_VILLAS_SEGMENTS}
+        {/* ── BUY HOUSES & VILLAS ─────────────────────────────── */}
+        <PropertyListingCarousel
+          title="Buy Houses & Villas"
+          subtitle="Own your dream home in Kottayam district"
+          apiUrl="/api/properties?status=published&type=sale&category=houses&limit=10&sort=newest"
+          viewAllHref="/properties?type=sale&category=houses"
           bg="bg-slate-50"
         />
 
-        {/* ── RESIDENTIAL PLOTS ───────────────────────────────── */}
-        <SegmentCardRow
-          title="Residential Plots & Land"
-          subtitle="Buy a plot and build your dream home in Kottayam"
-          cards={PLOTS_SEGMENTS}
+        {/* ── RESIDENTIAL PLOTS FOR SALE ──────────────────────── */}
+        <PropertyListingCarousel
+          title="Residential Plots for Sale"
+          subtitle="Buy a plot and build your dream home"
+          apiUrl="/api/properties?status=published&type=sale&category=residential-plots&limit=10&sort=newest"
+          viewAllHref="/properties?type=sale&category=residential-plots"
           bg="bg-white"
         />
 
-        {/* ── COMMERCIAL PROPERTIES ───────────────────────────── */}
-        <SegmentCardRow
-          title="Commercial Properties"
-          subtitle="Shops, offices, warehouses & commercial spaces"
-          cards={COMMERCIAL_SEGMENTS}
+        {/* ── RENT OFFICE / COMMERCIAL SPACES ─────────────────── */}
+        <PropertyListingCarousel
+          title="Commercial & Office Spaces"
+          subtitle="Shops, offices & commercial properties in Kottayam"
+          apiUrl="/api/properties?status=published&category=commercial&limit=10&sort=newest"
+          viewAllHref="/properties?category=commercial"
           bg="bg-slate-50"
+        />
+
+        {/* ── ALL PROPERTIES FOR SALE ──────────────────────────── */}
+        <PropertyListingCarousel
+          title="Properties for Sale"
+          subtitle="Buy residential & commercial properties across Kottayam"
+          apiUrl="/api/properties?status=published&type=sale&limit=10&sort=newest"
+          viewAllHref="/properties?type=sale"
+          bg="bg-white"
         />
 
         {/* ── HOW IT WORKS ───────────────────────────────────── */}

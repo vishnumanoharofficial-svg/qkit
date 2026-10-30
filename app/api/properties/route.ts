@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
   const offset         = (page - 1) * limit;
   const featured       = searchParams.get('featured');
   const sort           = searchParams.get('sort') ?? 'newest';
+  const priceMin       = searchParams.get('price_min');
+  const priceMax       = searchParams.get('price_max');
   // Location filters
   const talukParam         = searchParams.get('taluk');
   const townParam          = searchParams.get('town_panchayat');
@@ -44,6 +46,9 @@ export async function GET(request: NextRequest) {
     if (sellerPhone) query = query.eq('seller_phone', sellerPhone);
     if (type)        query = query.eq('transaction_type', type);
     if (featured)    query = query.eq('is_featured', true);
+    if (category)    query = query.eq('category_slug', category);
+    if (priceMin)    query = query.gte('price', Number(priceMin));
+    if (priceMax)    query = query.lte('price', Number(priceMax));
     // Location filters — server-side for accuracy
     if (talukParam)  query = query.ilike('taluk', talukParam);
     if (townParam)   query = query.or(`town_panchayat.ilike.${townParam},city.ilike.${townParam}`);

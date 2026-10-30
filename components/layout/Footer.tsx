@@ -71,9 +71,9 @@ export default function Footer() {
               <span>Kottayam District, Kerala</span>
             </div>
             <div className="space-y-2 text-sm">
-              <a href="mailto:support@qkit.in" className="flex items-center gap-2 text-slate-400 hover:text-blue-400 transition-colors">
+              <a href="mailto:qkitcontact@gmail.com" className="flex items-center gap-2 text-slate-400 hover:text-blue-400 transition-colors">
                 <Mail className="w-4 h-4" />
-                support@qkit.in
+                qkitcontact@gmail.com
               </a>
               <a href="tel:+919400000000" className="flex items-center gap-2 text-slate-400 hover:text-blue-400 transition-colors">
                 <Phone className="w-4 h-4" />

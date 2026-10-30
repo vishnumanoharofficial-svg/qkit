@@ -658,9 +658,18 @@ export default function HomePage() {
         <PropertyListingCarousel
           title="Houses & Villas for Rent"
           subtitle="Rental homes available now in Kottayam"
-          apiUrl="/api/properties?status=published&type=rent&limit=10&sort=newest"
-          viewAllHref="/properties?type=rent"
+          apiUrl="/api/properties?status=published&type=rent&category=houses&limit=10&sort=newest"
+          viewAllHref="/properties?type=rent&category=houses"
           bg="bg-white"
+        />
+
+        {/* ── APARTMENTS FOR RENT ──────────────────────────────── */}
+        <PropertyListingCarousel
+          title="Apartments & Flats for Rent"
+          subtitle="Furnished & unfurnished apartments in Kottayam"
+          apiUrl="/api/properties?status=published&type=rent&category=apartments&limit=10&sort=newest"
+          viewAllHref="/properties?type=rent&category=apartments"
+          bg="bg-slate-50"
         />
 
         {/* ── BUY HOUSES & VILLAS ─────────────────────────────── */}
@@ -669,7 +678,7 @@ export default function HomePage() {
           subtitle="Own your dream home in Kottayam district"
           apiUrl="/api/properties?status=published&type=sale&category=houses&limit=10&sort=newest"
           viewAllHref="/properties?type=sale&category=houses"
-          bg="bg-slate-50"
+          bg="bg-white"
         />
 
         {/* ── RESIDENTIAL PLOTS FOR SALE ──────────────────────── */}
@@ -678,16 +687,16 @@ export default function HomePage() {
           subtitle="Buy a plot and build your dream home"
           apiUrl="/api/properties?status=published&type=sale&category=residential-plots&limit=10&sort=newest"
           viewAllHref="/properties?type=sale&category=residential-plots"
-          bg="bg-white"
+          bg="bg-slate-50"
         />
 
-        {/* ── RENT OFFICE / COMMERCIAL SPACES ─────────────────── */}
+        {/* ── OFFICE / COMMERCIAL SPACES ───────────────────────── */}
         <PropertyListingCarousel
           title="Commercial & Office Spaces"
           subtitle="Shops, offices & commercial properties in Kottayam"
-          apiUrl="/api/properties?status=published&category=commercial&limit=10&sort=newest"
-          viewAllHref="/properties?category=commercial"
-          bg="bg-slate-50"
+          apiUrl="/api/properties?status=published&category=office-spaces&limit=10&sort=newest"
+          viewAllHref="/properties?category=office-spaces"
+          bg="bg-white"
         />
 
         {/* ── ALL PROPERTIES FOR SALE ──────────────────────────── */}
@@ -696,7 +705,7 @@ export default function HomePage() {
           subtitle="Buy residential & commercial properties across Kottayam"
           apiUrl="/api/properties?status=published&type=sale&limit=10&sort=newest"
           viewAllHref="/properties?type=sale"
-          bg="bg-white"
+          bg="bg-slate-50"
         />
 
         {/* ── HOW IT WORKS ───────────────────────────────────── */}

@@ -27,12 +27,22 @@ export const metadata: Metadata = {
   authors: [{ name: 'qkit' }],
   creator: 'qkit',
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  icons: {
+    icon: [
+      { url: '/favicon-q.jpg', type: 'image/jpeg' },
+    ],
+    apple: [
+      { url: '/favicon-q.jpg', type: 'image/jpeg' },
+    ],
+    shortcut: '/favicon-q.jpg',
+  },
   openGraph: {
     type: 'website',
     locale: 'en_IN',
     siteName: 'qkit',
     title: 'qkit — Real Estate in Kottayam District, Kerala',
     description: "Kottayam's trusted real estate marketplace — buy, sell, rent & lease properties.",
+    images: [{ url: '/favicon-q.jpg', width: 1024, height: 1024, alt: 'qkit logo' }],
   },
   robots: { index: true, follow: true },
 };

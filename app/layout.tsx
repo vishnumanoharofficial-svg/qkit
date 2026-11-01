@@ -23,28 +23,51 @@ export const metadata: Metadata = {
   },
   description:
     "Kottayam District's trusted real estate marketplace. Buy, sell, rent and lease residential, commercial, agricultural and industrial properties in Kottayam, Kerala.",
-  keywords: ['real estate Kottayam', 'property for sale Kottayam', 'property for rent Kottayam', 'Kerala real estate', 'qkit', 'Changanassery', 'Pala', 'Ettumanoor'],
+  keywords: [
+    'real estate Kottayam', 'property for sale Kottayam', 'property for rent Kottayam',
+    'Kerala real estate', 'qkit', 'house for sale Kottayam', 'house for rent Kottayam',
+    'residential plots Kottayam', 'commercial property Kottayam',
+    'Changanassery', 'Pala', 'Ettumanoor', 'Vaikom', 'Kanjirappally',
+  ],
   authors: [{ name: 'qkit' }],
   creator: 'qkit',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  publisher: 'qkit',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://www.qyukit.in'),
+  alternates: {
+    canonical: '/',
+  },
   icons: {
-    icon: [
-      { url: '/favicon-q.jpg', type: 'image/jpeg' },
-    ],
-    apple: [
-      { url: '/favicon-q.jpg', type: 'image/jpeg' },
-    ],
+    icon: [{ url: '/favicon-q.jpg', type: 'image/jpeg' }],
+    apple: [{ url: '/favicon-q.jpg', type: 'image/jpeg' }],
     shortcut: '/favicon-q.jpg',
   },
+  manifest: '/manifest.json',
   openGraph: {
     type: 'website',
     locale: 'en_IN',
-    siteName: 'qkit',
+    url: '/',
+    siteName: 'qkit Real Estate',
     title: 'qkit — Real Estate in Kottayam District, Kerala',
     description: "Kottayam's trusted real estate marketplace — buy, sell, rent & lease properties.",
-    images: [{ url: '/favicon-q.jpg', width: 1024, height: 1024, alt: 'qkit logo' }],
+    images: [{ url: '/favicon-q.jpg', width: 1024, height: 1024, alt: 'qkit Real Estate' }],
   },
-  robots: { index: true, follow: true },
+  twitter: {
+    card: 'summary',
+    title: 'qkit — Real Estate in Kottayam District, Kerala',
+    description: "Kottayam's trusted real estate marketplace — buy, sell, rent & lease properties.",
+    images: ['/favicon-q.jpg'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 };
 
 export const viewport: Viewport = {

@@ -91,6 +91,7 @@ export default function PropertyCard({
       className={cn(
         'bg-white rounded-2xl overflow-hidden shadow-card border border-slate-100',
         'hover:shadow-card-hover transition-all duration-300 hover:-translate-y-0.5 flex flex-col cursor-pointer',
+        listing.status === 'sold' && 'opacity-80',
         className
       )}
     >
@@ -101,7 +102,7 @@ export default function PropertyCard({
           <img
             src={imgUrl}
             alt={listing.title}
-            className="w-full h-full object-cover"
+            className={cn('w-full h-full object-cover', listing.status === 'sold' && 'grayscale-[40%]')}
             onError={() => setImgError(true)}
           />
         ) : (
@@ -111,12 +112,32 @@ export default function PropertyCard({
           </div>
         )}
 
-        {/* For Sale / Rent / Lease badge */}
-        <div className="absolute top-3 left-3">
-          <span className={cn('text-xs font-bold px-2.5 py-1 rounded-full shadow-sm', badge.cls)}>
-            {badge.label}
-          </span>
-        </div>
+        {/* SOLD overlay — shown when status is sold */}
+        {listing.status === 'sold' && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="bg-red-600/90 text-white font-extrabold text-xl tracking-widest px-6 py-2 rounded-xl shadow-lg rotate-[-15deg] border-4 border-white/40 uppercase">
+              Sold
+            </div>
+          </div>
+        )}
+
+        {/* For Sale / Rent / Lease badge — hide when sold */}
+        {listing.status !== 'sold' && (
+          <div className="absolute top-3 left-3">
+            <span className={cn('text-xs font-bold px-2.5 py-1 rounded-full shadow-sm', badge.cls)}>
+              {badge.label}
+            </span>
+          </div>
+        )}
+
+        {/* Sold badge top-left */}
+        {listing.status === 'sold' && (
+          <div className="absolute top-3 left-3">
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full shadow-sm bg-red-600 text-white">
+              Sold
+            </span>
+          </div>
+        )}
 
         {/* Save / Heart */}
         <button

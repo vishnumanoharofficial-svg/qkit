@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Link from 'next/link';
-import { Plus, Edit2, Pause, CheckCircle, XCircle, Clock, Loader2, LogIn, Home } from 'lucide-react';
+import { Plus, Edit2, Pause, CheckCircle, XCircle, Clock, Loader2, LogIn, Home, BadgeCheck } from 'lucide-react';
 import { formatIndianPrice, timeAgo } from '@/lib/utils';
 
 interface AuthUser { id: string; name?: string; phone?: string; }
@@ -18,12 +18,13 @@ interface Listing {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
-  published: { label: 'Live',    cls: 'badge-brand',  icon: CheckCircle },
-  pending:   { label: 'Pending', cls: 'badge-amber',  icon: Clock },
-  rejected:  { label: 'Rejected',cls: 'badge bg-red-100 text-red-700',   icon: XCircle },
-  draft:     { label: 'Draft',   cls: 'badge-slate',  icon: Clock },
-  paused:    { label: 'Paused',  cls: 'badge-slate',  icon: Pause },
-  expired:   { label: 'Expired', cls: 'badge bg-orange-100 text-orange-700', icon: XCircle },
+  published: { label: 'Live',     cls: 'badge-brand',                          icon: CheckCircle },
+  pending:   { label: 'Pending',  cls: 'badge-amber',                          icon: Clock },
+  rejected:  { label: 'Rejected', cls: 'badge bg-red-100 text-red-700',        icon: XCircle },
+  draft:     { label: 'Draft',    cls: 'badge-slate',                          icon: Clock },
+  paused:    { label: 'Paused',   cls: 'badge-slate',                          icon: Pause },
+  expired:   { label: 'Expired',  cls: 'badge bg-orange-100 text-orange-700',  icon: XCircle },
+  sold:      { label: 'Sold',     cls: 'badge bg-red-100 text-red-700',        icon: BadgeCheck },
 };
 
 const TX_LABELS: Record<string, string> = {
@@ -31,12 +32,13 @@ const TX_LABELS: Record<string, string> = {
 };
 
 export default function MyListingsPage() {
-  const [user, setUser]             = useState<AuthUser | null>(null);
+  const [user, setUser]               = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [listings, setListings]     = useState<Listing[]>([]);
-  const [total, setTotal]           = useState(0);
-  const [loading, setLoading]       = useState(false);
-  const [filter, setFilter]         = useState('All');
+  const [listings, setListings]       = useState<Listing[]>([]);
+  const [total, setTotal]             = useState(0);
+  const [loading, setLoading]         = useState(false);
+  const [filter, setFilter]           = useState('All');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -46,7 +48,7 @@ export default function MyListingsPage() {
       .finally(() => setAuthLoading(false));
   }, []);
 
-  useEffect(() => {
+  const loadListings = useCallback(() => {
     if (!user) return;
     setLoading(true);
     const statusParam = filter === 'All' ? '' : `&status=${filter.toLowerCase()}`;
@@ -57,6 +59,37 @@ export default function MyListingsPage() {
       .catch(() => { setListings([]); setTotal(0); })
       .finally(() => setLoading(false));
   }, [user, filter]);
+
+  useEffect(() => { loadListings(); }, [loadListings]);
+
+  async function markAsSold(listingId: string) {
+    if (!confirm('Mark this property as Sold? It will no longer appear in active listings.')) return;
+    setActionLoading(listingId);
+    try {
+      const res = await fetch(`/api/listings/${listingId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'sold' }),
+      });
+      if (res.ok) setListings(prev => prev.map(l => l.id === listingId ? { ...l, status: 'sold' } : l));
+      else alert('Failed to update. Please try again.');
+    } catch { alert('Network error. Please try again.'); }
+    finally { setActionLoading(null); }
+  }
+
+  async function markAsActive(listingId: string) {
+    setActionLoading(listingId);
+    try {
+      const res = await fetch(`/api/listings/${listingId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'published' }),
+      });
+      if (res.ok) setListings(prev => prev.map(l => l.id === listingId ? { ...l, status: 'published' } : l));
+      else alert('Failed to update. Please try again.');
+    } catch { alert('Network error. Please try again.'); }
+    finally { setActionLoading(null); }
+  }
 
   if (authLoading) return (
     <><Header />
@@ -97,10 +130,12 @@ export default function MyListingsPage() {
 
           {/* Filter tabs */}
           <div className="flex gap-2 mb-6 flex-wrap">
-            {['All', 'Live', 'Pending', 'Draft', 'Paused', 'Expired'].map(tab => (
+            {['All', 'Live', 'Pending', 'Sold', 'Draft', 'Paused', 'Expired'].map(tab => (
               <button key={tab} onClick={() => setFilter(tab)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                  filter === tab ? 'bg-brand-600 text-white border-brand-600' : 'border-slate-200 text-slate-600 hover:border-brand-300'
+                  filter === tab
+                    ? 'bg-brand-600 text-white border-brand-600'
+                    : 'border-slate-200 text-slate-600 hover:border-brand-300'
                 }`}>
                 {tab}
               </button>
@@ -125,35 +160,54 @@ export default function MyListingsPage() {
               <Home className="w-12 h-12 text-slate-300 mx-auto mb-4" />
               <h3 className="font-heading font-semibold text-slate-700 mb-2">No listings yet</h3>
               <p className="text-slate-500 text-sm mb-6">Post your first property for free in under 2 minutes.</p>
-              <Link href="/post-property" className="btn-primary btn-md inline-flex"><Plus className="w-4 h-4" /> Post Property</Link>
+              <Link href="/post-property" className="btn-primary btn-md inline-flex">
+                <Plus className="w-4 h-4" /> Post Property
+              </Link>
             </div>
           ) : (
             <div className="space-y-4">
               {listings.map(l => {
                 const cfg = STATUS_CONFIG[l.status] ?? STATUS_CONFIG.draft;
                 const StatusIcon = cfg.icon;
+                const isSold = l.status === 'sold';
+                const isActioning = actionLoading === l.id;
                 return (
-                  <div key={l.id} className="card p-5">
+                  <div key={l.id} className={`card p-5 ${isSold ? 'opacity-75' : ''}`}>
                     <div className="flex gap-4 flex-wrap sm:flex-nowrap">
-                      <div className="w-28 h-20 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
+                      {/* Thumbnail */}
+                      <div className="w-28 h-20 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0 relative">
                         {l.media?.[0]?.url
                           ? /* eslint-disable-next-line @next/next/no-img-element */
-                            <img src={l.media[0].url} alt="" className="w-full h-full object-cover" />
+                            <img src={l.media[0].url} alt=""
+                              className={`w-full h-full object-cover ${isSold ? 'grayscale' : ''}`} />
                           : <div className="w-full h-full flex items-center justify-center text-3xl">🏠</div>
                         }
+                        {isSold && (
+                          <div className="absolute inset-0 bg-red-600/70 flex items-center justify-center rounded-xl">
+                            <span className="text-white text-xs font-bold uppercase tracking-wide">Sold</span>
+                          </div>
+                        )}
                       </div>
+
+                      {/* Details */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start gap-3 justify-between">
-                          <h2 className="font-semibold text-slate-900 leading-tight text-sm line-clamp-2">{l.title}</h2>
+                          <h2 className="font-semibold text-slate-900 leading-tight text-sm line-clamp-2">
+                            {l.title}
+                          </h2>
                           <div className="flex flex-col items-end gap-1 flex-shrink-0">
                             <span className={`${cfg.cls} badge flex items-center gap-1`}>
                               <StatusIcon className="w-3 h-3" /> {cfg.label}
                             </span>
-                            <span className="badge badge-slate text-xs">{TX_LABELS[l.transaction_type] ?? l.transaction_type}</span>
+                            <span className="badge badge-slate text-xs">
+                              {TX_LABELS[l.transaction_type] ?? l.transaction_type}
+                            </span>
                           </div>
                         </div>
                         <p className="text-xs text-slate-500 mt-1">
-                          {[l.listing_id, l.town_panchayat, 'Kottayam'].filter(Boolean).join(' · ')} · {formatIndianPrice(l.price, l.price_unit as 'total' | 'per_month' | 'per_sqft' | 'per_year')}
+                          {[l.listing_id, l.town_panchayat, 'Kottayam'].filter(Boolean).join(' · ')}
+                          {' · '}
+                          {formatIndianPrice(l.price, l.price_unit as 'total' | 'per_month' | 'per_sqft' | 'per_year')}
                         </p>
                         <div className="flex flex-wrap gap-4 mt-2 text-xs text-slate-400">
                           <span>👁 {l.views_count ?? 0} views</span>
@@ -162,15 +216,40 @@ export default function MyListingsPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Actions row */}
                     <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-100 flex-wrap">
                       {l.slug && (
                         <Link href={`/property/${l.slug}`} target="_blank"
-                          className="text-xs text-brand-600 hover:underline font-medium">View Listing →</Link>
+                          className="text-xs text-brand-600 hover:underline font-medium">
+                          View Listing →
+                        </Link>
                       )}
-                      <div className="flex gap-2 ml-auto">
-                        <button className="btn-secondary btn-sm text-xs"><Pause className="w-3.5 h-3.5" /> Pause</button>
-                        <Link href={`/seller/edit/${l.id}`} className="btn-secondary btn-sm text-xs"><Edit2 className="w-3.5 h-3.5" /> Edit</Link>
-                        <button className="btn-primary btn-sm text-xs">⭐ Promote</button>
+                      <div className="flex gap-2 ml-auto flex-wrap">
+                        {isSold ? (
+                          /* Re-list button */
+                          <button onClick={() => markAsActive(l.id)} disabled={isActioning}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors">
+                            {isActioning
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <CheckCircle className="w-3.5 h-3.5" />}
+                            Re-list Property
+                          </button>
+                        ) : (
+                          /* Mark as Sold button */
+                          <button onClick={() => markAsSold(l.id)} disabled={isActioning}
+                            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 transition-colors">
+                            {isActioning
+                              ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              : <BadgeCheck className="w-3.5 h-3.5" />}
+                            Mark as Sold
+                          </button>
+                        )}
+                        {!isSold && (
+                          <Link href={`/seller/edit/${l.id}`} className="btn-secondary btn-sm text-xs">
+                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                          </Link>
+                        )}
                       </div>
                     </div>
                   </div>

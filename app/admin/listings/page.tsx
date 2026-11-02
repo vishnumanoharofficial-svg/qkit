@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Plus, Pencil } from 'lucide-react';
 import { getListings } from '@/lib/supabase/queries';
 import { formatIndianPrice, timeAgo } from '@/lib/utils';
+import AdminSoldButton from './AdminSoldButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'All Listings | qkit Admin' };
@@ -132,7 +133,7 @@ export default async function AdminListingsPage() {
                           {timeAgo(l.created_at)}
                         </td>
                         <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Link href={`/admin/listings/${l.id}/edit`}
                               className="flex items-center gap-1 text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                               <Pencil className="w-3 h-3" />Edit
@@ -141,6 +142,7 @@ export default async function AdminListingsPage() {
                               className="text-xs text-slate-500 hover:text-brand-600 hover:underline whitespace-nowrap">
                               View
                             </Link>
+                            <AdminSoldButton id={l.id} currentStatus={l.status} />
                           </div>
                         </td>
                       </tr>

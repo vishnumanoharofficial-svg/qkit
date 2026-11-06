@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -72,6 +72,7 @@ export default function PostPropertyPage() {
   const [errors, setErrors]   = useState<Partial<FormData>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted]   = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     accept: { 'image/*': [] },
@@ -127,15 +128,37 @@ export default function PostPropertyPage() {
     if (images.length === 0 && !confirm('Continue without photos? Listings with photos get 5x more enquiries.')) return;
     setSubmitting(true);
     try {
-      // Build attributes from dynamic fields
-      const attributes: Record<string, string> = {};
-      if (form.bedrooms)    attributes.bedrooms    = form.bedrooms;
-      if (form.bathrooms)   attributes.bathrooms   = form.bathrooms;
-      if (form.floor)       attributes.floor       = form.floor;
-      if (form.total_floors)attributes.total_floors = form.total_floors;
-      if (form.furnishing)  attributes.furnishing  = form.furnishing;
-      if (form.parking)     attributes.parking     = form.parking;
+      // Step 1: Upload images to Supabase storage
+      const uploadedUrls: string[] = [];
+      if (images.length > 0) {
+        setUploadProgress(`Uploading photos… 0 / ${images.length}`);
+        for (let i = 0; i < images.length; i++) {
+          const fd = new FormData();
+          fd.append('file', images[i]);
+          try {
+            const upRes = await fetch('/api/upload-image', { method: 'POST', body: fd });
+            const upData = await upRes.json() as { url?: string; error?: string };
+            if (upRes.ok && upData.url) {
+              uploadedUrls.push(upData.url);
+            }
+          } catch {
+            // Skip failed individual image — don't block the whole submission
+          }
+          setUploadProgress(`Uploading photos… ${i + 1} / ${images.length}`);
+        }
+        setUploadProgress('');
+      }
 
+      // Step 2: Build attributes from dynamic fields
+      const attributes: Record<string, string> = {};
+      if (form.bedrooms)     attributes.bedrooms     = form.bedrooms;
+      if (form.bathrooms)    attributes.bathrooms    = form.bathrooms;
+      if (form.floor)        attributes.floor        = form.floor;
+      if (form.total_floors) attributes.total_floors = form.total_floors;
+      if (form.furnishing)   attributes.furnishing   = form.furnishing;
+      if (form.parking)      attributes.parking      = form.parking;
+
+      // Step 3: Submit listing with uploaded image URLs
       const res = await fetch('/api/properties', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -157,7 +180,7 @@ export default function PostPropertyPage() {
           seller_type:      form.seller_type,
           negotiable:       true,
           attributes,
-          media_urls:       [], // TODO: upload images to storage first
+          media_urls:       uploadedUrls,
         }),
       });
 
@@ -169,6 +192,7 @@ export default function PostPropertyPage() {
       alert(err instanceof globalThis.Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
+      setUploadProgress('');
     }
   }
 
@@ -540,7 +564,7 @@ export default function PostPropertyPage() {
                 <label className="flex items-start gap-3 mb-6 cursor-pointer">
                   <input type="checkbox" required className="accent-brand-600 mt-0.5" />
                   <span className="text-xs text-slate-500">
-                    I confirm that I am the owner or authorised representative of this property and agree to qkit's{' '}
+                    I confirm that I am the owner or authorised representative of this property and agree to qkit&apos;s{' '}
                     <Link href="/terms" className="text-brand-600 underline">Terms of Service</Link>{' '}
                     and{' '}
                     <Link href="/privacy" className="text-brand-600 underline">Privacy Policy</Link>.
@@ -548,8 +572,16 @@ export default function PostPropertyPage() {
                   </span>
                 </label>
 
+                {/* Upload progress indicator */}
+                {uploadProgress && (
+                  <div className="flex items-center gap-2 text-sm text-brand-600 mb-4 bg-brand-50 rounded-xl px-4 py-2.5">
+                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                    <span>{uploadProgress}</span>
+                  </div>
+                )}
+
                 <button type="submit" disabled={submitting} className="btn-primary btn-xl w-full">
-                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />Publishing…</> : <><Check className="w-5 h-5" />Publish Listing</>}
+                  {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />{uploadProgress || 'Publishing…'}</> : <><Check className="w-5 h-5" />Publish Listing</>}
                 </button>
               </div>
             </form>

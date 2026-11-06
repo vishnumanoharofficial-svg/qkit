@@ -52,8 +52,8 @@ export default function MyListingsPage() {
     if (!user) return;
     setLoading(true);
     const statusParam = filter === 'All' ? '' : `&status=${filter.toLowerCase()}`;
-    const sellerPhone = encodeURIComponent(user.phone ?? user.id);
-    fetch(`/api/properties?seller_phone=${sellerPhone}&limit=50${statusParam}`)
+    // Use /api/my-listings which matches by owner_email (set at submission) — not seller_phone
+    fetch(`/api/my-listings?limit=50${statusParam}`)
       .then(r => r.json())
       .then(res => { setListings(res.data ?? []); setTotal(res.total ?? 0); })
       .catch(() => { setListings([]); setTotal(0); })

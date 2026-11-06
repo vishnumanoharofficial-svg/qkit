@@ -34,10 +34,10 @@ export default function AdminSoldButton({
     <button
       onClick={toggle}
       disabled={loading}
-      className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap ${
+      className={`flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap w-full ${
         isSold
           ? 'bg-green-50 text-green-700 hover:bg-green-100'
-          : 'bg-red-50 text-red-700 hover:bg-red-100'
+          : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
       }`}
     >
       {loading

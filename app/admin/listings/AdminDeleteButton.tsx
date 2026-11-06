@@ -14,7 +14,7 @@ export default function AdminDeleteButton({ id }: { id: string }) {
     try {
       const res = await fetch(`/api/admin/listings/${id}`, { method: 'DELETE' });
       if (res.ok) {
-        router.refresh(); // re-render the server component table
+        router.refresh();
       } else {
         const data = await res.json() as { error?: string };
         alert(data.error ?? 'Failed to delete. Please try again.');
@@ -31,7 +31,7 @@ export default function AdminDeleteButton({ id }: { id: string }) {
       onClick={handleDelete}
       disabled={loading}
       title="Delete listing permanently"
-      className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
+      className="flex items-center justify-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap w-full bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
     >
       {loading
         ? <Loader2 className="w-3 h-3 animate-spin" />

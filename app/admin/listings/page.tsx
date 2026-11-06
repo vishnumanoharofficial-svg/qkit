@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, Eye } from 'lucide-react';
 import { getListings } from '@/lib/supabase/queries';
 import { formatIndianPrice, timeAgo } from '@/lib/utils';
 import AdminSoldButton from './AdminSoldButton';
@@ -12,11 +12,17 @@ export const metadata: Metadata = { title: 'All Listings | qkit Admin' };
 const STATUS_STYLES: Record<string, string> = {
   published: 'badge-brand',
   pending:   'badge-amber',
-  rejected:  'badge-red',
+  rejected:  'badge bg-red-100 text-red-700',
   draft:     'badge-slate',
   paused:    'badge bg-slate-200 text-slate-500',
   expired:   'badge bg-orange-100 text-orange-700',
   sold:      'badge bg-blue-100 text-blue-700',
+};
+
+const TX_LABEL: Record<string, string> = {
+  sale:  'Sale',
+  rent:  'Rent',
+  lease: 'Lease',
 };
 
 export default async function AdminListingsPage() {
@@ -53,7 +59,7 @@ export default async function AdminListingsPage() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-x-hidden">
+      <main className="flex-1 overflow-x-auto">
         <header className="bg-white border-b border-slate-100 px-6 py-4">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div>
@@ -70,17 +76,17 @@ export default async function AdminListingsPage() {
         <div className="p-6">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm min-w-[900px]">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide">
                   <tr>
-                    <th className="text-left px-5 py-3">Property</th>
-                    <th className="text-left px-5 py-3">Location</th>
-                    <th className="text-left px-5 py-3">Seller</th>
-                    <th className="text-left px-5 py-3">Price</th>
-                    <th className="text-left px-5 py-3">Type</th>
-                    <th className="text-left px-5 py-3">Status</th>
-                    <th className="text-left px-5 py-3">Posted</th>
-                    <th className="text-left px-5 py-3">Actions</th>
+                    <th className="text-left px-4 py-3 whitespace-nowrap">Property</th>
+                    <th className="text-left px-4 py-3 whitespace-nowrap">Location</th>
+                    <th className="text-left px-4 py-3 whitespace-nowrap">Seller</th>
+                    <th className="text-left px-4 py-3 whitespace-nowrap">Price</th>
+                    <th className="text-left px-4 py-3 whitespace-nowrap">Type</th>
+                    <th className="text-left px-4 py-3 whitespace-nowrap">Status</th>
+                    <th className="text-left px-4 py-3 whitespace-nowrap">Posted</th>
+                    <th className="text-left px-4 py-3 whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -95,9 +101,12 @@ export default async function AdminListingsPage() {
                       </td>
                     </tr>
                   ) : (
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     listings.map((l: any) => (
                       <tr key={l.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-5 py-3.5 max-w-[220px]">
+
+                        {/* Property */}
+                        <td className="px-4 py-3 max-w-[200px]">
                           <div className="flex items-center gap-3">
                             <div className="w-12 h-9 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
                               {l.media?.[0] && (
@@ -111,42 +120,61 @@ export default async function AdminListingsPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-5 py-3.5 text-slate-600 text-xs">
-                          {[l.locality, l.city, l.state].filter(Boolean).join(', ') ||
-                           l.locality?.name || l.address_line || '—'}
+
+                        {/* Location */}
+                        <td className="px-4 py-3 text-slate-600 text-xs max-w-[140px]">
+                          <span className="line-clamp-2">
+                            {[l.town_panchayat, l.taluk].filter(Boolean).join(', ') ||
+                             l.address_line || '—'}
+                          </span>
                         </td>
-                        <td className="px-5 py-3.5">
-                          <p className="text-slate-700">{l.seller_name}</p>
+
+                        {/* Seller */}
+                        <td className="px-4 py-3">
+                          <p className="text-slate-700 whitespace-nowrap">{l.seller_name}</p>
                           <p className="text-xs text-slate-400 capitalize">{l.seller_type}</p>
                         </td>
-                        <td className="px-5 py-3.5 font-semibold text-brand-600 whitespace-nowrap">
+
+                        {/* Price */}
+                        <td className="px-4 py-3 font-semibold text-brand-600 whitespace-nowrap">
                           {formatIndianPrice(l.price, l.price_unit)}
                         </td>
-                        <td className="px-5 py-3.5">
-                          <span className="badge badge-slate capitalize">{l.transaction_type}</span>
+
+                        {/* Type */}
+                        <td className="px-4 py-3">
+                          <span className="badge badge-slate whitespace-nowrap capitalize">
+                            {TX_LABEL[l.transaction_type] ?? l.transaction_type}
+                          </span>
                         </td>
-                        <td className="px-5 py-3.5">
-                          <span className={STATUS_STYLES[l.status] || 'badge badge-slate'}>
+
+                        {/* Status */}
+                        <td className="px-4 py-3">
+                          <span className={`${STATUS_STYLES[l.status] || 'badge badge-slate'} whitespace-nowrap capitalize`}>
                             {l.status}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 text-xs text-slate-400 whitespace-nowrap">
+
+                        {/* Posted */}
+                        <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
                           {timeAgo(l.created_at)}
                         </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-2 flex-wrap">
+
+                        {/* Actions — 2×2 grid */}
+                        <td className="px-4 py-3">
+                          <div className="grid grid-cols-2 gap-1.5 w-[140px]">
                             <Link href={`/admin/listings/${l.id}/edit`}
-                              className="flex items-center gap-1 text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                              className="flex items-center justify-center gap-1 text-xs bg-brand-50 text-brand-700 hover:bg-brand-100 font-medium px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap">
                               <Pencil className="w-3 h-3" />Edit
                             </Link>
                             <Link href={`/property/${l.slug}`} target="_blank"
-                              className="text-xs text-slate-500 hover:text-brand-600 hover:underline whitespace-nowrap">
-                              View
+                              className="flex items-center justify-center gap-1 text-xs bg-slate-50 text-slate-600 hover:bg-slate-100 font-medium px-2 py-1.5 rounded-lg transition-colors whitespace-nowrap border border-slate-200">
+                              <Eye className="w-3 h-3" />View
                             </Link>
                             <AdminSoldButton id={l.id} currentStatus={l.status} />
                             <AdminDeleteButton id={l.id} />
                           </div>
                         </td>
+
                       </tr>
                     ))
                   )}

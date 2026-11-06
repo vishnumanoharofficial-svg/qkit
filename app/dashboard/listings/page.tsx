@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import Link from 'next/link';
-import { Plus, Edit2, Pause, CheckCircle, XCircle, Clock, Loader2, LogIn, Home, BadgeCheck } from 'lucide-react';
+import { Plus, Edit2, Pause, CheckCircle, XCircle, Clock, Loader2, LogIn, Home, BadgeCheck, Trash2 } from 'lucide-react';
 import { formatIndianPrice, timeAgo } from '@/lib/utils';
 
 interface AuthUser { id: string; name?: string; phone?: string; }
@@ -91,6 +91,22 @@ export default function MyListingsPage() {
     finally { setActionLoading(null); }
   }
 
+  async function deleteListing(listingId: string) {
+    if (!confirm('Permanently delete this listing? This cannot be undone.')) return;
+    setActionLoading(`del-${listingId}`);
+    try {
+      const res = await fetch(`/api/my-listings/${listingId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setListings(prev => prev.filter(l => l.id !== listingId));
+        setTotal(prev => Math.max(0, prev - 1));
+      } else {
+        const data = await res.json() as { error?: string };
+        alert(data.error ?? 'Failed to delete. Please try again.');
+      }
+    } catch { alert('Network error. Please try again.'); }
+    finally { setActionLoading(null); }
+  }
+
   if (authLoading) return (
     <><Header />
       <main className="min-h-screen flex items-center justify-center">
@@ -170,7 +186,7 @@ export default function MyListingsPage() {
                 const cfg = STATUS_CONFIG[l.status] ?? STATUS_CONFIG.draft;
                 const StatusIcon = cfg.icon;
                 const isSold = l.status === 'sold';
-                const isActioning = actionLoading === l.id;
+                const isActioning = actionLoading === l.id || actionLoading === `del-${l.id}`;
                 return (
                   <div key={l.id} className={`card p-5 ${isSold ? 'opacity-75' : ''}`}>
                     <div className="flex gap-4 flex-wrap sm:flex-nowrap">
@@ -250,6 +266,18 @@ export default function MyListingsPage() {
                             <Edit2 className="w-3.5 h-3.5" /> Edit
                           </Link>
                         )}
+                        {/* Delete button — always visible */}
+                        <button
+                          onClick={() => deleteListing(l.id)}
+                          disabled={actionLoading === `del-${l.id}`}
+                          title="Delete this listing permanently"
+                          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl bg-slate-100 text-slate-500 border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+                        >
+                          {actionLoading === `del-${l.id}`
+                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            : <Trash2 className="w-3.5 h-3.5" />}
+                          Delete
+                        </button>
                       </div>
                     </div>
                   </div>

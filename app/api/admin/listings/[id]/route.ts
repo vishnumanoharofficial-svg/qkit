@@ -164,7 +164,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/admin/listings/[id] — soft-delete by setting status=rejected
+// DELETE /api/admin/listings/[id] — hard delete listing + all related records
 export async function DELETE(
   _req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -172,9 +172,13 @@ export async function DELETE(
   const { id } = await context.params;
   try {
     const supabase = getSupabase();
+    // Delete related records first (FK constraints)
+    await supabase.from('property_media').delete().eq('listing_id', id);
+    await supabase.from('property_attributes').delete().eq('listing_id', id);
+    // Delete the listing itself
     const { error } = await supabase
       .from('property_listings')
-      .update({ status: 'rejected', updated_at: new Date().toISOString() })
+      .delete()
       .eq('id', id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -4,6 +4,7 @@ import { Plus, Pencil } from 'lucide-react';
 import { getListings } from '@/lib/supabase/queries';
 import { formatIndianPrice, timeAgo } from '@/lib/utils';
 import AdminSoldButton from './AdminSoldButton';
+import AdminDeleteButton from './AdminDeleteButton';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'All Listings | qkit Admin' };
@@ -143,6 +144,7 @@ export default async function AdminListingsPage() {
                               View
                             </Link>
                             <AdminSoldButton id={l.id} currentStatus={l.status} />
+                            <AdminDeleteButton id={l.id} />
                           </div>
                         </td>
                       </tr>

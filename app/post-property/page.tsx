@@ -184,7 +184,7 @@ export default function PostPropertyPage() {
         }),
       });
 
-      const data = await res.json() as { error?: string; listing_id?: string };
+      const data = await res.json() as { error?: string; listing_id?: string; slug?: string; published?: boolean };
       if (!res.ok) throw new globalThis.Error(data.error ?? 'Submission failed');
 
       setSubmitted(true);
@@ -212,10 +212,10 @@ export default function PostPropertyPage() {
             <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <Check className="w-8 h-8 text-brand-600" />
             </div>
-            <h2 className="font-heading font-bold text-2xl text-slate-900 mb-3">Listing Submitted!</h2>
-            <p className="text-slate-500 text-sm mb-6">Your property has been submitted for review. It will be published within 24 hours.</p>
+            <h2 className="font-heading font-bold text-2xl text-slate-900 mb-3">Your Listing is Live! 🎉</h2>
+            <p className="text-slate-500 text-sm mb-6">Your property has been published and is now visible to buyers on qkit. You can manage it from your dashboard.</p>
             <div className="flex gap-3">
-              <Link href="/dashboard" className="flex-1 btn-secondary btn-md">My Dashboard</Link>
+              <Link href="/dashboard/listings" className="flex-1 btn-secondary btn-md">My Listings</Link>
               <Link href="/post-property" className="flex-1 btn-primary btn-md"><Plus className="w-4 h-4" />Post Another</Link>
             </div>
           </div>

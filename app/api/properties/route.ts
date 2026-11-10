@@ -128,6 +128,11 @@ export async function POST(request: NextRequest) {
       resolvedCategoryId = catRow?.id ?? null;
     }
 
+    // Logged-in users are already OTP-verified — auto-publish immediately
+    // Admin-added listings (no session) remain pending for review
+    const autoPublish = !!session;
+    const now = new Date().toISOString();
+
     // Build the insert payload — user_id is omitted (FK is nullable, owner identified via seller_phone)
     const insertPayload: Record<string, unknown> = {
       // user_id intentionally omitted — avoids FK constraint against auth.users
@@ -145,7 +150,8 @@ export async function POST(request: NextRequest) {
       seller_name,
       seller_phone,
       seller_type:      seller_type || 'owner',
-      status:           'pending',
+      status:           autoPublish ? 'published' : 'pending',
+      published_at:     autoPublish ? now : null,
       listing_id,
       is_verified:      false,
       is_featured:      false,
@@ -221,7 +227,7 @@ export async function POST(request: NextRequest) {
       if (mediaErr) console.warn('[POST /api/properties] Media insert warning:', mediaErr.message);
     }
 
-    return NextResponse.json({ listing_id, slug, id: listing.id }, { status: 201 });
+    return NextResponse.json({ listing_id, slug, id: listing.id, published: autoPublish }, { status: 201 });
 
   } catch (err: unknown) {
     console.error('[POST /api/properties]', err);
